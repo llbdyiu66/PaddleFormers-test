@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 """Paddle Ernie model"""
 
 import math
@@ -63,6 +64,8 @@ from .refined_recompute.utils import RefinedRecomputeFunction
 from .sequence_parallel_utils import ScatterOp
 from .refined_recompute.utils import create_skip_config_for_refined_recompute
 from .configuration import Ernie4_5_Config
+
+
 
 
 def calc_lm_head_logits(config, hidden_states, weight, bias, tensor_parallel_output=None, training=True):
