@@ -14,6 +14,8 @@
 
 """Paddle Ernie model"""
 
+# update paddlenlp -> paddleformers
+
 import math
 import contextlib
 import functools
