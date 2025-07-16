@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Paddle Ernie model"""
+
 import math
 import contextlib
 import functools
@@ -40,7 +41,7 @@ from paddleformers.transformers.model_outputs import (
     CausalLMOutputWithCrossAttentions,
 )
 from paddle.distributed.fleet.utils import recompute
-from paddleformers.transformers.model_utils import PretrainedModel, register_base_model
+from paddleformers.transformers.model_utils import PretrainedModel
 from paddleformers.utils.log import logger
 
 from .distributed import (
