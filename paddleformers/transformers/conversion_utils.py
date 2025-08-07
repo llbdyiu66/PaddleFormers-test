@@ -1273,7 +1273,7 @@ class ConversionMixin:
 
         # 3. convert state_dict
         # transpose weight
-        state_dict = cls._transpose_selected_weights(state_dict)
+        state_dict = cls._transpose_selected_weights(state_dict, config)
 
         # pack modules
         if isinstance(cls.packed_modules_mapping, dict):
@@ -1322,26 +1322,41 @@ class ConversionMixin:
                             state_dict[f"{prefix_str}.{p_sim_key}.{suffix_str}"] = split_values[idx]
 
         # transpose weight
-        state_dict = cls._transpose_selected_weights(state_dict)
+        state_dict = cls._transpose_selected_weights(state_dict, config)
 
         return state_dict
 
     @classmethod
-    def _transpose_selected_weights(cls, state_dict: dict):
+    def _transpose_selected_weights(cls, state_dict: dict, config: PretrainedConfig):
         """transpose Linear weights
 
         Args:
             state_dict (dict): the state_dict of paddle model
+            config (PretrainedConfig): the configuration of name-mapping
 
         Returns:
             dict: the converted state_dict
         """
-        if isinstance(cls.transpose_weight_keys, list):
-            state_dict_keys = list(state_dict.keys())
-            for key in state_dict_keys:
-                for trans_key in cls.transpose_weight_keys:
-                    if key.endswith(f".{trans_key}.weight") or key == f"{trans_key}.weight":
-                        state_dict[key] = state_dict[key].transpose([-1, -2])
+        if cls.transpose_weight_keys is None:
+            name_mappings = cls._get_name_mappings(config)
+            all_layer_names = set(state_dict.keys())
+            for name_mapping in name_mappings:
+                if name_mapping.source_name not in state_dict:
+                    logger.warning(f"key<{name_mapping.source_name}> not in the pytorch weight file.")
+                    continue
+                state_dict[name_mapping.target_name] = name_mapping.run(state_dict, name_mapping.source_name)
+                if name_mapping.source_name in all_layer_names:
+                    all_layer_names.remove(name_mapping.source_name)
+            if all_layer_names:
+                logger.warning(f"There are {len(all_layer_names)} tensors not initialized:")
+                logger.warning(f"Keys: {all_layer_names}")
+        else:
+            if isinstance(cls.transpose_weight_keys, list):
+                state_dict_keys = list(state_dict.keys())
+                for key in state_dict_keys:
+                    for trans_key in cls.transpose_weight_keys:
+                        if key.endswith(f".{trans_key}.weight") or key == f"{trans_key}.weight":
+                            state_dict[key] = state_dict[key].transpose([-1, -2])
         return state_dict
 
     @classmethod
