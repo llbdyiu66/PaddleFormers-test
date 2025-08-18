@@ -1290,7 +1290,7 @@ class ConversionMixin:
                 logger.warning(f"Keys: {all_layer_names}")
 
         else:
-            state_dict = cls._transpose_selected_weights(state_dict)
+            state_dict = cls.convert_transpose_selected_weights(state_dict, cls.transpose_weight_keys)
 
         # pack modules
         if isinstance(cls.packed_modules_mapping, dict):
@@ -1312,7 +1312,7 @@ class ConversionMixin:
         return state_dict
 
     @classmethod
-    def convert_torch_weights(cls, state_dict: dict, config: PretrainedConfig):
+    def convert_hf_weights(cls, state_dict: dict, config: PretrainedConfig):
         """convert to fit HF torch weights
 
         Args:
@@ -1339,26 +1339,27 @@ class ConversionMixin:
                             state_dict[f"{prefix_str}.{p_sim_key}.{suffix_str}"] = split_values[idx]
 
         # transpose weight
-        state_dict = cls._transpose_selected_weights(state_dict)
+        state_dict = cls.convert_transpose_selected_weights(state_dict, cls.transpose_weight_keys)
 
         return state_dict
 
-    @classmethod
-    def _transpose_selected_weights(cls, state_dict: dict):
+    @staticmethod
+    def convert_transpose_selected_weights(state_dict: dict, transpose_weight_keys: list):
         """transpose Linear weights
 
         Args:
             state_dict (dict): the state_dict of paddle model
+            transpose_weight_keys (list): the keys that need to be transposed
 
         Returns:
             dict: the converted state_dict
         """
-        if isinstance(cls.transpose_weight_keys, list):
+        if isinstance(transpose_weight_keys, list):
             state_dict_keys = list(state_dict.keys())
             for key in state_dict_keys:
-                for trans_key in cls.transpose_weight_keys:
+                for trans_key in transpose_weight_keys:
                     if key.endswith(f".{trans_key}.weight") or key == f"{trans_key}.weight":
-                        state_dict[key] = state_dict[key].transpose([-1, -2])
+                        state_dict[key] = state_dict.pop(key).transpose([-1, -2])
         return state_dict
 
     @classmethod

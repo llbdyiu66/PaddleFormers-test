@@ -22,6 +22,7 @@ import paddle
 from paddle.distributed import fleet
 
 from ...peft import LoRAModel, PrefixModelForCausalLM
+from ...transformers.conversion_utils import ConversionMixin
 from ...transformers.model_utils import (
     PretrainedModel,
     _add_variant,
@@ -94,7 +95,7 @@ class UnifiedCheckpointHandler:
         self.args = args
         self.async_handler = AsyncCheckpointHandler(args)
 
-    def save_unified_checkpoint(self, model, optimizer, output_dir, signal_dir=None):
+    def save_unified_checkpoint(self, model, optimizer, output_dir, signal_dir=None, save_to_hf=False):
         """save unified checkpoint
 
         Args:
@@ -113,6 +114,13 @@ class UnifiedCheckpointHandler:
             model_to_save = model
         else:
             raise ValueError("Unified checkpoint only supports PretrainedModel, LoRAModel and PrefixModelForCausalLM!")
+
+        # save hf
+        if save_to_hf:
+            transpose_weight_keys = getattr(model_to_save, "transpose_weight_keys", None)
+            ConversionMixin.convert_transpose_selected_weights(
+                get_expected_state_dict(model_to_save), transpose_weight_keys
+            )
 
         # Under non distributed environment.
         if paddle.distributed.get_world_size() <= 1:
@@ -175,7 +183,7 @@ class UnifiedCheckpointHandler:
             }
             paddle.save(save_info, os.path.join(save_directory, ".saving_info"))
 
-    def load_unified_checkpoint(self, model, resume_from_checkpoint: str):
+    def load_unified_checkpoint(self, model, resume_from_checkpoint: str, convert_from_hf=False):
         """Load potential model checkpoint
 
         Args:
@@ -186,7 +194,7 @@ class UnifiedCheckpointHandler:
             None
         """
         if paddle.distributed.get_world_size() <= 1:
-            load_single_card_checkpoint(model, resume_from_checkpoint)
+            load_single_card_checkpoint(model, resume_from_checkpoint, convert_from_hf=convert_from_hf)
             return
 
         local_resume = check_unified_checkpoint(self.args, model, resume_from_checkpoint, safe_serialization=True)
@@ -197,7 +205,9 @@ class UnifiedCheckpointHandler:
             return
 
         if self.args.dataset_rank == 0 or self.args.use_expert_parallel:
-            load_unified_checkpoint_locally(self.args, model, resume_from_checkpoint, safe_serialization=True)
+            load_unified_checkpoint_locally(
+                self.args, model, resume_from_checkpoint, safe_serialization=True, convert_from_hf=convert_from_hf
+            )
 
     def save_non_merge_optimizer(
         self, model, optim_state_dict, master_weights, output_dir, signal_dir, optim_shard_num=1

@@ -298,7 +298,11 @@ class Trainer:
         optimizers: Tuple[paddle.optimizer.Optimizer, paddle.optimizer.lr.LRScheduler] = (None, None),
         preprocess_logits_for_metrics: Callable[[paddle.Tensor, paddle.Tensor], paddle.Tensor] = None,
         processing_class: Optional[ImageProcessingMixin] = None,
+        **kwargs,
     ):
+
+        self.convert_from_hf = kwargs.get("convert_from_hf", False)
+        self.save_to_hf = kwargs.get("save_to_hf", False)
 
         if args is None:
             output_dir = "tmp_trainer"
@@ -674,6 +678,7 @@ class Trainer:
                     self.unified_checkpoint_handler.load_unified_checkpoint(
                         self.model,
                         resume_from_checkpoint,
+                        convert_from_hf=self.convert_from_hf,
                     )
                     if isinstance(self.model, LoRAModel) and self.model.lora_config.loraga:
                         self.model.reinit_base_model = True
@@ -1437,6 +1442,7 @@ class Trainer:
                     self.unified_checkpoint_handler.load_unified_checkpoint(
                         self.model,
                         self.state.best_model_checkpoint,
+                        convert_from_hf=self.convert_from_hf,
                     )
                     if self.args.sharding_parallel_degree > 1 or self.args.data_parallel_degree > 1:
                         broadcast_dataset_rank0_model(self.model)
@@ -1487,6 +1493,7 @@ class Trainer:
             self.unified_checkpoint_handler.load_unified_checkpoint(
                 self.model,
                 self.state.best_model_checkpoint,
+                convert_from_hf=self.convert_from_hf,
             )
             if self.args.sharding_parallel_degree > 1 or self.args.data_parallel_degree > 1:
                 broadcast_dataset_rank0_model(self.model)
@@ -2987,7 +2994,9 @@ class Trainer:
             # backup and remove unified_checkpoint_config for not trine stage
             if not self.is_in_train:
                 self.args.unified_checkpoint_config = []
-            self.unified_checkpoint_handler.save_unified_checkpoint(self.model, self.optimizer, output_dir, signal_dir)
+            self.unified_checkpoint_handler.save_unified_checkpoint(
+                self.model, self.optimizer, output_dir, signal_dir, save_to_hf=self.save_to_hf
+            )
 
             # recover unified_checkpoint_config for not trine stage
             if not self.is_in_train:

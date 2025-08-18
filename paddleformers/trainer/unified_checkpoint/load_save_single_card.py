@@ -162,7 +162,7 @@ def save_single_card_optimizer(model, optimizer, output_dir):
         save_file_sync(master_weights, path=os.path.join(output_dir, "master_weights-00001-of-00001.safetensors"))
 
 
-def load_single_card_checkpoint(model, resume_from_checkpoint: str):
+def load_single_card_checkpoint(model, resume_from_checkpoint: str, convert_from_hf=False):
     if isinstance(model, LoRAModel) or isinstance(model, PrefixModelForCausalLM):
         index_filename = SAFE_PEFT_WEIGHTS_INDEX_NAME
     else:
@@ -180,7 +180,14 @@ def load_single_card_checkpoint(model, resume_from_checkpoint: str):
     if len(missing_keys) > 0:
         raise ValueError(f"Missing keys: {missing_keys}")
 
-    state_dict = load_state_dict(resolved_archive_file[0], None, expected_keys)
+    transpose_weight_keys = getattr(model, "transpose_weight_keys", None)
+    state_dict = load_state_dict(
+        resolved_archive_file[0],
+        None,
+        expected_keys,
+        convert_from_hf=convert_from_hf,
+        transpose_weight_keys=transpose_weight_keys,
+    )
     error_msgs = _load_state_dict_into_model(model, state_dict, "")
     del state_dict
     gc.collect()
