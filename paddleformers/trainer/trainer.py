@@ -626,7 +626,9 @@ class Trainer:
             elif isinstance(self.model, LoKrModel):
                 weights_file = os.path.join(resume_from_checkpoint, LOKR_WEIGHTS_NAME)
             elif isinstance(self.model, ReFTModel):
-                self.model.from_pretrained(resume_from_checkpoint, self.model.model)
+                self.model.from_pretrained(
+                    resume_from_checkpoint, self.model.model, convert_from_hf=self.convert_from_hf
+                )
                 return
 
             if self.args.dataset_rank == 0:
@@ -3020,6 +3022,7 @@ class Trainer:
                 merge_tensor_parallel=merge_tensor_parallel,
                 is_main_process=self.args.should_save,
                 max_shard_size="1024GB",
+                save_to_hf=self.save_to_hf,
             )
         # TODO: @ZHUI unify unwrap_model(self.model) and self.model
         elif not isinstance(self.model, PretrainedModel):
@@ -3038,6 +3041,7 @@ class Trainer:
                         save_function=self._save_ckpt_func,
                         is_main_process=self.args.should_save,
                         max_shard_size="1024GB",
+                        save_to_hf=self.save_to_hf,
                     )
                 else:
                     unwrap_model(self.model).save_pretrained(
@@ -3047,6 +3051,7 @@ class Trainer:
                         save_function=self._save_ckpt_func,
                         is_main_process=self.args.should_save,
                         max_shard_size="1024GB",
+                        save_to_hf=self.save_to_hf,
                     )
             else:
                 logger.info("Trainer.model is not a `PretrainedModel`, only saving its state dict.")
@@ -3079,6 +3084,7 @@ class Trainer:
                     save_function=self._save_ckpt_func,
                     is_main_process=self.args.should_save,
                     max_shard_size="1024GB",
+                    save_to_hf=self.save_to_hf,
                 )
             else:
                 self.model.save_pretrained(
@@ -3088,6 +3094,7 @@ class Trainer:
                     save_function=self._save_ckpt_func,
                     is_main_process=self.args.should_save,
                     max_shard_size="1024GB",
+                    save_to_hf=self.save_to_hf,
                 )
         if self.args.should_save_sharding_stage1_model:
             model_meta = self.sharding_io.gather_distributed_model_meta()
