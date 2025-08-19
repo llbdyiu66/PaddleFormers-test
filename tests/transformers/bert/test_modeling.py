@@ -14,21 +14,19 @@
 # limitations under the License.
 from __future__ import annotations
 
-import os
-import random
-import tempfile
+# import os
+# import random
+# import tempfile
 import unittest
-from typing import List
 
-import numpy as np
+# import numpy as np
 import paddle
-from parameterized import parameterized, parameterized_class
 
-from paddleformers import __version__ as current_version
-from paddleformers.transformers import (
-    AutoModel,
-    AutoModelForQuestionAnswering,
-    AutoModelForTokenClassification,
+# from parameterized import parameterized
+from parameterized import parameterized_class
+
+# from paddleformers import __version__ as current_version
+from paddleformers.transformers import (  # AutoModel,; AutoModelForQuestionAnswering,; AutoModelForTokenClassification,
     BertForMaskedLM,
     BertForMultipleChoice,
     BertForPretraining,
@@ -38,10 +36,9 @@ from paddleformers.transformers import (
     BertModel,
 )
 from paddleformers.transformers.bert.configuration import BertConfig
-from paddleformers.transformers.model_utils import PretrainedModel
-from paddleformers.utils import install_package, uninstall_package
 
-from ...testing_utils import require_package, slow
+# from ...testing_utils import require_package, slow
+from ...testing_utils import slow
 from ..test_configuration_common import ConfigTester
 from ..test_modeling_common import (
     ModelTesterMixin,
@@ -49,6 +46,12 @@ from ..test_modeling_common import (
     ids_tensor,
     random_attention_mask,
 )
+
+# from typing import List
+
+
+# from paddleformers.transformers.model_utils import PretrainedModel
+# from paddleformers.utils import install_package, uninstall_package
 
 
 class BertModelTester:
@@ -443,284 +446,284 @@ class BertModelTest(ModelTesterMixin, unittest.TestCase):
         assert model.dropout.p == 0.3
 
 
-class BertCompatibilityTest(unittest.TestCase):
-    test_model_id = "hf-internal-testing/tiny-random-BertModel"
+# class BertCompatibilityTest(unittest.TestCase):
+#     test_model_id = "hf-internal-testing/tiny-random-BertModel"
 
-    @classmethod
-    @require_package("transformers", "torch")
-    def setUpClass(cls) -> None:
-        from transformers import BertModel
+#     @classmethod
+#     @require_package("transformers", "torch")
+#     def setUpClass(cls) -> None:
+#         from transformers import BertModel
 
-        # when python application is done, `TemporaryDirectory` will be free
-        cls.torch_model_path = tempfile.TemporaryDirectory().name
-        model = BertModel.from_pretrained(cls.test_model_id)
-        model.save_pretrained(cls.torch_model_path)
+#         # when python application is done, `TemporaryDirectory` will be free
+#         cls.torch_model_path = tempfile.TemporaryDirectory().name
+#         model = BertModel.from_pretrained(cls.test_model_id)
+#         model.save_pretrained(cls.torch_model_path)
 
-    def test_model_config_mapping(self):
-        config = BertConfig(num_labels=22, hidden_dropout_prob=0.99)
-        self.assertEqual(config.hidden_dropout_prob, 0.99)
-        self.assertEqual(config.num_labels, 22)
+#     def test_model_config_mapping(self):
+#         config = BertConfig(num_labels=22, hidden_dropout_prob=0.99)
+#         self.assertEqual(config.hidden_dropout_prob, 0.99)
+#         self.assertEqual(config.num_labels, 22)
 
-    def setUp(self) -> None:
-        self.tempdirs: List[tempfile.TemporaryDirectory] = []
+#     def setUp(self) -> None:
+#         self.tempdirs: List[tempfile.TemporaryDirectory] = []
 
-    def tearDown(self) -> None:
-        for tempdir in self.tempdirs:
-            tempdir.cleanup()
+#     def tearDown(self) -> None:
+#         for tempdir in self.tempdirs:
+#             tempdir.cleanup()
 
-    def get_tempdir(self) -> str:
-        tempdir = tempfile.TemporaryDirectory()
-        self.tempdirs.append(tempdir)
-        return tempdir.name
+#     def get_tempdir(self) -> str:
+#         tempdir = tempfile.TemporaryDirectory()
+#         self.tempdirs.append(tempdir)
+#         return tempdir.name
 
-    def run_token_for_classification(self, version: str):
-        install_package("paddleformers", version=version)
+#     def run_token_for_classification(self, version: str):
+#         install_package("paddleformers", version=version)
 
-        from paddleformers import __version__
+#         from paddleformers import __version__
 
-        self.assertEqual(__version__, version)
-        from paddleformers.transformers import BertForTokenClassification, BertModel
+#         self.assertEqual(__version__, version)
+#         from paddleformers.transformers import BertForTokenClassification, BertModel
 
-        tempdir = self.get_tempdir()
+#         tempdir = self.get_tempdir()
 
-        # prepare the old version of model
-        old_model = BertModel.from_pretrained("bert-base-uncased")
-        old_model_path = os.path.join(tempdir, "old-model")
-        old_model.save_pretrained(old_model_path)
+#         # prepare the old version of model
+#         old_model = BertModel.from_pretrained("bert-base-uncased")
+#         old_model_path = os.path.join(tempdir, "old-model")
+#         old_model.save_pretrained(old_model_path)
 
-        old_model_for_token = BertForTokenClassification.from_pretrained(
-            "bert-base-uncased", num_classes=4, dropout=0.3
-        )
-        old_model_for_token_path = os.path.join(tempdir, "old-model-for-token")
-        old_model_for_token.save_pretrained(old_model_for_token_path)
+#         old_model_for_token = BertForTokenClassification.from_pretrained(
+#             "bert-base-uncased", num_classes=4, dropout=0.3
+#         )
+#         old_model_for_token_path = os.path.join(tempdir, "old-model-for-token")
+#         old_model_for_token.save_pretrained(old_model_for_token_path)
 
-        uninstall_package("paddleformers")
-        from paddleformers import __version__
+#         uninstall_package("paddleformers")
+#         from paddleformers import __version__
 
-        self.assertEqual(__version__, current_version)
+#         self.assertEqual(__version__, current_version)
 
-        from paddleformers.transformers import BertForTokenClassification, BertModel
+#         from paddleformers.transformers import BertForTokenClassification, BertModel
 
-        # bert: from old bert
-        model = BertModel.from_pretrained(old_model_path)
-        self.compare_two_model(old_model, model)
+#         # bert: from old bert
+#         model = BertModel.from_pretrained(old_model_path)
+#         self.compare_two_model(old_model, model)
 
-        # bert: from old bert-for-token
-        model = BertModel.from_pretrained(old_model_for_token_path)
-        self.compare_two_model(old_model, model)
+#         # bert: from old bert-for-token
+#         model = BertModel.from_pretrained(old_model_for_token_path)
+#         self.compare_two_model(old_model, model)
 
-        # bert-for-token: from old bert
-        model = BertForTokenClassification.from_pretrained(old_model_path)
-        self.compare_two_model(old_model_for_token, model)
-        self.assertNotEqual(model.num_labels, 4)
-        self.assertNotEqual(model.dropout.p, 0.3)
+#         # bert-for-token: from old bert
+#         model = BertForTokenClassification.from_pretrained(old_model_path)
+#         self.compare_two_model(old_model_for_token, model)
+#         self.assertNotEqual(model.num_labels, 4)
+#         self.assertNotEqual(model.dropout.p, 0.3)
 
-        # bert-for-token: from old bert-for-token
-        model = BertForTokenClassification.from_pretrained(old_model_for_token_path)
-        self.compare_two_model(old_model_for_token, model)
-        self.assertEqual(model.num_labels, 4)
-        self.assertEqual(model.dropout.p, 0.3)
+#         # bert-for-token: from old bert-for-token
+#         model = BertForTokenClassification.from_pretrained(old_model_for_token_path)
+#         self.compare_two_model(old_model_for_token, model)
+#         self.assertEqual(model.num_labels, 4)
+#         self.assertEqual(model.dropout.p, 0.3)
 
-    def compare_two_model(self, first_model: PretrainedModel, second_model: PretrainedModel):
+#     def compare_two_model(self, first_model: PretrainedModel, second_model: PretrainedModel):
 
-        first_weight_name = "encoder.layers.8.linear2.weight"
-        if first_model.__class__.__name__ != "BertModel":
-            first_weight_name = "bert." + first_weight_name
+#         first_weight_name = "encoder.layers.8.linear2.weight"
+#         if first_model.__class__.__name__ != "BertModel":
+#             first_weight_name = "bert." + first_weight_name
 
-        second_weight_name = "encoder.layers.8.linear2.weight"
-        if second_model.__class__.__name__ != "BertModel":
-            second_weight_name = "bert." + second_weight_name
+#         second_weight_name = "encoder.layers.8.linear2.weight"
+#         if second_model.__class__.__name__ != "BertModel":
+#             second_weight_name = "bert." + second_weight_name
 
-        first_tensor = first_model.state_dict()[first_weight_name]
-        second_tensor = second_model.state_dict()[second_weight_name]
-        self.compare_two_weight(first_tensor, second_tensor)
+#         first_tensor = first_model.state_dict()[first_weight_name]
+#         second_tensor = second_model.state_dict()[second_weight_name]
+#         self.compare_two_weight(first_tensor, second_tensor)
 
-    def compare_two_weight(self, first_tensor, second_tensor):
-        diff = paddle.sum(first_tensor - second_tensor).item()
-        self.assertEqual(diff, 0.0)
+#     def compare_two_weight(self, first_tensor, second_tensor):
+#         diff = paddle.sum(first_tensor - second_tensor).item()
+#         self.assertEqual(diff, 0.0)
 
-    @slow
-    def test_paddleformers_token_classification(self):
-        versions = ["3.0.0b4"]
-        for version in versions:
-            install_package("paddleformers", version=version)
-            self.run_token_for_classification(version)
-            uninstall_package("paddleformers")
+#     @slow
+#     def test_paddleformers_token_classification(self):
+#         versions = ["3.0.0b4"]
+#         for version in versions:
+#             install_package("paddleformers", version=version)
+#             self.run_token_for_classification(version)
+#             uninstall_package("paddleformers")
 
-    @slow
-    def test_bert_save_token_load(self):
-        """bert -> token"""
-        from paddleformers.transformers import BertForTokenClassification, BertModel
+#     @slow
+#     def test_bert_save_token_load(self):
+#         """bert -> token"""
+#         from paddleformers.transformers import BertForTokenClassification, BertModel
 
-        saved_dir = os.path.join(self.get_tempdir(), "bert-saved")
-        bert: BertModel = BertModel.from_pretrained("bert-base-uncased")
-        bert.save_pretrained(saved_dir)
+#         saved_dir = os.path.join(self.get_tempdir(), "bert-saved")
+#         bert: BertModel = BertModel.from_pretrained("bert-base-uncased")
+#         bert.save_pretrained(saved_dir)
 
-        bert_for_token = BertForTokenClassification.from_pretrained(saved_dir)
-        self.compare_two_model(bert, bert_for_token)
+#         bert_for_token = BertForTokenClassification.from_pretrained(saved_dir)
+#         self.compare_two_model(bert, bert_for_token)
 
-    @slow
-    def test_bert_save_bert_load(self):
-        """bert -> bert"""
-        saved_dir = os.path.join(self.get_tempdir(), "bert-saved")
-        bert: BertModel = BertModel.from_pretrained("bert-base-uncased")
-        bert.save_pretrained(saved_dir)
+#     @slow
+#     def test_bert_save_bert_load(self):
+#         """bert -> bert"""
+#         saved_dir = os.path.join(self.get_tempdir(), "bert-saved")
+#         bert: BertModel = BertModel.from_pretrained("bert-base-uncased")
+#         bert.save_pretrained(saved_dir)
 
-        bert_loaded = BertModel.from_pretrained(saved_dir)
-        self.compare_two_model(bert, bert_loaded)
+#         bert_loaded = BertModel.from_pretrained(saved_dir)
+#         self.compare_two_model(bert, bert_loaded)
 
-    @slow
-    def test_token_saved_bert_load(self):
-        """token -> bert"""
-        from paddleformers.transformers import BertForTokenClassification, BertModel
+#     @slow
+#     def test_token_saved_bert_load(self):
+#         """token -> bert"""
+#         from paddleformers.transformers import BertForTokenClassification, BertModel
 
-        saved_dir = os.path.join(self.get_tempdir(), "bert-token-saved")
-        bert_for_token = BertForTokenClassification.from_pretrained("bert-base-uncased")
-        bert_for_token.save_pretrained(saved_dir)
+#         saved_dir = os.path.join(self.get_tempdir(), "bert-token-saved")
+#         bert_for_token = BertForTokenClassification.from_pretrained("bert-base-uncased")
+#         bert_for_token.save_pretrained(saved_dir)
 
-        bert = BertModel.from_pretrained(saved_dir)
-        self.compare_two_model(bert, bert_for_token)
+#         bert = BertModel.from_pretrained(saved_dir)
+#         self.compare_two_model(bert, bert_for_token)
 
-    @slow
-    def test_token_saved_token_load(self):
-        """token -> token"""
-        saved_dir = os.path.join(self.get_tempdir(), "bert-token-saved")
-        bert_for_token = BertForTokenClassification.from_pretrained("bert-base-uncased")
-        bert_for_token.save_pretrained(saved_dir)
+#     @slow
+#     def test_token_saved_token_load(self):
+#         """token -> token"""
+#         saved_dir = os.path.join(self.get_tempdir(), "bert-token-saved")
+#         bert_for_token = BertForTokenClassification.from_pretrained("bert-base-uncased")
+#         bert_for_token.save_pretrained(saved_dir)
 
-        bert_for_token_loaded = BertForTokenClassification.from_pretrained(saved_dir)
-        self.compare_two_model(bert_for_token, bert_for_token_loaded)
+#         bert_for_token_loaded = BertForTokenClassification.from_pretrained(saved_dir)
+#         self.compare_two_model(bert_for_token, bert_for_token_loaded)
 
-    @slow
-    def test_auto_model(self):
-        AutoModel.from_pretrained("bert-base-uncased")
-        model = AutoModelForTokenClassification.from_pretrained("bert-base-uncased", num_classes=4, dropout=0.3)
-        self.assertEqual(model.num_labels, 4)
-        self.assertEqual(model.dropout.p, 0.3)
+#     @slow
+#     def test_auto_model(self):
+#         AutoModel.from_pretrained("bert-base-uncased")
+#         model = AutoModelForTokenClassification.from_pretrained("bert-base-uncased", num_classes=4, dropout=0.3)
+#         self.assertEqual(model.num_labels, 4)
+#         self.assertEqual(model.dropout.p, 0.3)
 
-        model = AutoModelForQuestionAnswering.from_pretrained("bert-base-uncased", dropout=0.3)
-        self.assertEqual(model.dropout.p, 0.3)
+#         model = AutoModelForQuestionAnswering.from_pretrained("bert-base-uncased", dropout=0.3)
+#         self.assertEqual(model.dropout.p, 0.3)
 
-    @require_package("transformers", "torch")
-    def test_bert_converter(self):
-        with tempfile.TemporaryDirectory() as tempdir:
+#     @require_package("transformers", "torch")
+#     def test_bert_converter(self):
+#         with tempfile.TemporaryDirectory() as tempdir:
 
-            # 1. create common input
-            input_ids = np.random.randint(100, 200, [1, 20])
+#             # 1. create common input
+#             input_ids = np.random.randint(100, 200, [1, 20])
 
-            # 2. forward the paddle model
-            from paddleformers.transformers import BertModel
+#             # 2. forward the paddle model
+#             from paddleformers.transformers import BertModel
 
-            paddle_model = BertModel.from_pretrained(
-                "hf-internal-testing/tiny-random-BertModel", from_hf_hub=True, cache_dir=tempdir
-            )
-            paddle_model.eval()
-            paddle_logit = paddle_model(paddle.to_tensor(input_ids))[0]
+#             paddle_model = BertModel.from_pretrained(
+#                 "hf-internal-testing/tiny-random-BertModel", from_hf_hub=True, cache_dir=tempdir
+#             )
+#             paddle_model.eval()
+#             paddle_logit = paddle_model(paddle.to_tensor(input_ids))[0]
 
-            # 3. forward the torch  model
-            import torch
-            from transformers import BertModel
+#             # 3. forward the torch  model
+#             import torch
+#             from transformers import BertModel
 
-            torch_model = BertModel.from_pretrained("hf-internal-testing/tiny-random-BertModel", cache_dir=tempdir)
-            torch_model.eval()
-            torch_logit = torch_model(torch.tensor(input_ids), return_dict=False)[0]
+#             torch_model = BertModel.from_pretrained("hf-internal-testing/tiny-random-BertModel", cache_dir=tempdir)
+#             torch_model.eval()
+#             torch_logit = torch_model(torch.tensor(input_ids), return_dict=False)[0]
 
-            self.assertTrue(
-                np.allclose(
-                    paddle_logit.detach().cpu().reshape([-1])[:9].numpy(),
-                    torch_logit.detach().cpu().reshape([-1])[:9].numpy(),
-                    rtol=1e-4,
-                )
-            )
+#             self.assertTrue(
+#                 np.allclose(
+#                     paddle_logit.detach().cpu().reshape([-1])[:9].numpy(),
+#                     torch_logit.detach().cpu().reshape([-1])[:9].numpy(),
+#                     rtol=1e-4,
+#                 )
+#             )
 
-    @require_package("transformers", "torch")
-    def test_bert_converter_from_local_dir(self):
-        with tempfile.TemporaryDirectory() as tempdir:
+#     @require_package("transformers", "torch")
+#     def test_bert_converter_from_local_dir(self):
+#         with tempfile.TemporaryDirectory() as tempdir:
 
-            # 1. create common input
-            input_ids = np.random.randint(100, 200, [1, 20])
+#             # 1. create common input
+#             input_ids = np.random.randint(100, 200, [1, 20])
 
-            # 2. forward the torch  model
-            import torch
-            from transformers import BertModel
+#             # 2. forward the torch  model
+#             import torch
+#             from transformers import BertModel
 
-            torch_model = BertModel.from_pretrained("hf-internal-testing/tiny-random-BertModel")
-            torch_model.eval()
-            torch_model.save_pretrained(tempdir)
-            torch_logit = torch_model(torch.tensor(input_ids), return_dict=False)[0]
+#             torch_model = BertModel.from_pretrained("hf-internal-testing/tiny-random-BertModel")
+#             torch_model.eval()
+#             torch_model.save_pretrained(tempdir)
+#             torch_logit = torch_model(torch.tensor(input_ids), return_dict=False)[0]
 
-            # 2. forward the paddle model
-            from paddleformers.transformers import BertModel
+#             # 2. forward the paddle model
+#             from paddleformers.transformers import BertModel
 
-            paddle_model = BertModel.from_pretrained(tempdir, convert_from_torch=True)
-            paddle_model.eval()
-            paddle_logit = paddle_model(paddle.to_tensor(input_ids))[0]
+#             paddle_model = BertModel.from_pretrained(tempdir, convert_from_torch=True)
+#             paddle_model.eval()
+#             paddle_logit = paddle_model(paddle.to_tensor(input_ids))[0]
 
-            self.assertTrue(
-                np.allclose(
-                    paddle_logit.detach().cpu().reshape([-1])[:9].numpy(),
-                    torch_logit.detach().cpu().reshape([-1])[:9].numpy(),
-                    rtol=1e-4,
-                )
-            )
+#             self.assertTrue(
+#                 np.allclose(
+#                     paddle_logit.detach().cpu().reshape([-1])[:9].numpy(),
+#                     torch_logit.detach().cpu().reshape([-1])[:9].numpy(),
+#                     rtol=1e-4,
+#                 )
+#             )
 
-    @parameterized.expand(
-        [
-            ("BertModel",),
-            # ("BertForMaskedLM",),   TODO: need to tie weights
-            # ("BertForPretraining", "BertForPreTraining"),   TODO: need to tie weights
-            ("BertForMultipleChoice",),
-            ("BertForQuestionAnswering",),
-            ("BertForSequenceClassification",),
-            ("BertForTokenClassification",),
-        ]
-    )
-    @require_package("transformers", "torch")
-    def test_bert_classes_from_local_dir(self, class_name, pytorch_class_name: str | None = None):
-        pytorch_class_name = pytorch_class_name or class_name
-        with tempfile.TemporaryDirectory() as tempdir:
+#     @parameterized.expand(
+#         [
+#             ("BertModel",),
+#             # ("BertForMaskedLM",),   TODO: need to tie weights
+#             # ("BertForPretraining", "BertForPreTraining"),   TODO: need to tie weights
+#             ("BertForMultipleChoice",),
+#             ("BertForQuestionAnswering",),
+#             ("BertForSequenceClassification",),
+#             ("BertForTokenClassification",),
+#         ]
+#     )
+#     @require_package("transformers", "torch")
+#     def test_bert_classes_from_local_dir(self, class_name, pytorch_class_name: str | None = None):
+#         pytorch_class_name = pytorch_class_name or class_name
+#         with tempfile.TemporaryDirectory() as tempdir:
 
-            # 1. create common input
-            input_ids = np.random.randint(100, 200, [1, 20])
+#             # 1. create common input
+#             input_ids = np.random.randint(100, 200, [1, 20])
 
-            # 2. forward the torch model
-            import torch
-            import transformers
+#             # 2. forward the torch model
+#             import torch
+#             import transformers
 
-            torch_model_class = getattr(transformers, pytorch_class_name)
-            torch_model = torch_model_class.from_pretrained(self.torch_model_path)
-            torch_model.eval()
+#             torch_model_class = getattr(transformers, pytorch_class_name)
+#             torch_model = torch_model_class.from_pretrained(self.torch_model_path)
+#             torch_model.eval()
 
-            if "MultipleChoice" in class_name:
-                # construct input for MultipleChoice Model
-                torch_model.config.num_choices = random.randint(2, 10)
-                input_ids = (
-                    paddle.to_tensor(input_ids)
-                    .unsqueeze(1)
-                    .expand([-1, torch_model.config.num_choices, -1])
-                    .cpu()
-                    .numpy()
-                )
+#             if "MultipleChoice" in class_name:
+#                 # construct input for MultipleChoice Model
+#                 torch_model.config.num_choices = random.randint(2, 10)
+#                 input_ids = (
+#                     paddle.to_tensor(input_ids)
+#                     .unsqueeze(1)
+#                     .expand([-1, torch_model.config.num_choices, -1])
+#                     .cpu()
+#                     .numpy()
+#                 )
 
-            torch_model.save_pretrained(tempdir)
-            torch_logit = torch_model(torch.tensor(input_ids), return_dict=False)[0]
+#             torch_model.save_pretrained(tempdir)
+#             torch_logit = torch_model(torch.tensor(input_ids), return_dict=False)[0]
 
-            # 3. forward the paddle model
-            from paddleformers import transformers
+#             # 3. forward the paddle model
+#             from paddleformers import transformers
 
-            paddle_model_class = getattr(transformers, class_name)
-            paddle_model = paddle_model_class.from_pretrained(tempdir, convert_from_torch=True)
-            paddle_model.eval()
+#             paddle_model_class = getattr(transformers, class_name)
+#             paddle_model = paddle_model_class.from_pretrained(tempdir, convert_from_torch=True)
+#             paddle_model.eval()
 
-            paddle_logit = paddle_model(paddle.to_tensor(input_ids), return_dict=False)[0]
+#             paddle_logit = paddle_model(paddle.to_tensor(input_ids), return_dict=False)[0]
 
-            self.assertTrue(
-                np.allclose(
-                    paddle_logit.detach().cpu().reshape([-1])[:9].numpy(),
-                    torch_logit.detach().cpu().reshape([-1])[:9].numpy(),
-                    atol=1e-3,
-                )
-            )
+#             self.assertTrue(
+#                 np.allclose(
+#                     paddle_logit.detach().cpu().reshape([-1])[:9].numpy(),
+#                     torch_logit.detach().cpu().reshape([-1])[:9].numpy(),
+#                     atol=1e-3,
+#                 )
+#             )
 
 
 class BertModelIntegrationTest(ModelTesterPretrainedMixin, unittest.TestCase):

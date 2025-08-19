@@ -57,7 +57,7 @@ class Ernie4_5Config(PretrainedConfig):
         max_position_embeddings=32768,
         num_hidden_layers=2,
         num_attention_heads=2,
-        head_dim=None,
+        head_dim=128,
         scale_qk_coeff=1.0,
         initializer_range=0.02,
         rms_norm_eps=1e-6,
