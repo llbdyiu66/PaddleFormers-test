@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 import aistudio_sdk
+import ml_dtypes
 import numpy as np
 import paddle
 import paddle.nn as nn
@@ -371,6 +372,8 @@ def _load_part_state_dict(
     quantization_config=None,
     dtype=None,
     return_numpy=False,
+    convert_from_hf=False,
+    transpose_weight_keys=None,
 ):
     """load part state dict from checkpoint file.
 
@@ -384,6 +387,19 @@ def _load_part_state_dict(
         part_state_dict (dict): the part state dict
 
     """
+
+    def _is_need_transpose(key):
+        if "lora" not in key and convert_from_hf and isinstance(transpose_weight_keys, list):
+            for trans_key in transpose_weight_keys:
+                if key.endswith(f".{trans_key}.weight") or key == f"{trans_key}.weight":
+                    return True
+        return False
+
+    def _transpose_hf_weight(key, weight):
+        if _is_need_transpose(key):
+            return weight.transpose([-1, -2])
+        return weight
+
     part_state_dict = {}
     scale_dict = {}
     with safe_open(checkpoint_file, framework="np") as f:
@@ -408,6 +424,7 @@ def _load_part_state_dict(
             ):
                 # numpy.array -> paddle.tensor
                 weight = paddle.Tensor.__call__(py_safe_slice_[:], zero_copy=True)
+                weight = _transpose_hf_weight(key, weight)
                 key_name = key.split(".weight")[0]
                 quant_key_name = key_name + ".quant_weight"
                 weight_scale_name = key_name + ".weight_scale"
@@ -432,10 +449,18 @@ def _load_part_state_dict(
                 part_state_dict.update(quant_state_dict)
             else:
                 if key in tensor_parallel_split_mapping:
+                    tp_fn = tensor_parallel_split_mapping[key]
+                    if _is_need_transpose(key):
+                        assert isinstance(tp_fn, partial)
+                        is_column = True
+                        if "is_column" in tp_fn.keywords:
+                            is_column = tp_fn.keywords["is_column"]
+                        is_column = not is_column
+                        tp_fn = partial(tp_fn.func, *tp_fn.args, **{**tp_fn.keywords, "is_column": is_column})
                     if len(py_safe_slice_.shape) == 0:
-                        weight = tensor_parallel_split_mapping[key](py_safe_slice_.get())
+                        weight = tp_fn(py_safe_slice_.get())
                     else:
-                        weight = tensor_parallel_split_mapping[key](py_safe_slice_)
+                        weight = tp_fn(py_safe_slice_)
                 else:
                     if len(py_safe_slice_.shape) == 0:
                         weight = py_safe_slice_.get()
@@ -445,6 +470,7 @@ def _load_part_state_dict(
                     with device_guard():
                         weight = paddle.Tensor.__call__(weight, zero_copy=True)
                     weight = weight._copy_to(paddle.framework._current_expected_place(), False)
+                weight = _transpose_hf_weight(key, weight)
                 part_state_dict[key] = weight
 
         for key in keys:
@@ -478,11 +504,6 @@ def load_state_dict(
     """
     Reads a PaddlePaddle checkpoint file, returning properly formatted errors if they arise.
     """
-
-    if convert_from_hf:
-        state_dict = load_torch(checkpoint_file)
-        state_dict = ConversionMixin.convert_transpose_selected_weights(state_dict, transpose_weight_keys)
-        return state_dict
 
     if tensor_parallel_split_mapping is None:
         tensor_parallel_split_mapping = {}
@@ -520,6 +541,8 @@ def load_state_dict(
                         quantization_config,
                         dtype,
                         return_numpy,
+                        convert_from_hf,
+                        transpose_weight_keys,
                     )
             else:
                 # Load state dict in multi-thread to speed up loading
@@ -538,6 +561,8 @@ def load_state_dict(
                             quantization_config,
                             dtype,
                             return_numpy,
+                            convert_from_hf,
+                            transpose_weight_keys,
                         ): keys
                         for keys in keys_groups
                     }
@@ -561,6 +586,12 @@ def load_state_dict(
                 state_dict = dequant_unified_optimizer(state_dict, ckpt_quant_stage, scale_dict, use_pd=True)
 
             return state_dict
+
+    # load from hf but not safetensors checkpoint
+    if convert_from_hf:
+        state_dict = load_torch(checkpoint_file)
+        state_dict = ConversionMixin.convert_transpose_selected_weights(state_dict, transpose_weight_keys)
+        return state_dict
 
     state_dict = paddleformers_load(checkpoint_file, map_location="cpu")
     return state_dict
@@ -2659,22 +2690,24 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
 
         if not is_sharded and state_dict is None:
             # 4. loading non-sharded ckpt from the state dict
-            if convert_from_hf:
+            if config.tensor_parallel_degree > 1 and resolved_archive_file.endswith("model_state.pdparams"):
+                state_dict = cls.convert_tensor_parallel(resolved_archive_file, config)
+            elif config.tensor_parallel_degree > 1 and resolved_archive_file.endswith("model.safetensors"):
+                with safe_open(resolved_archive_file, framework="np", device="cpu") as f:
+                    loaded_keys = f.keys()
+                tp_actions = cls.get_tensor_parallel_convert_actions(config, loaded_keys)
+                state_dict = load_state_dict(
+                    resolved_archive_file,
+                    tp_actions,
+                    convert_from_hf=convert_from_hf,
+                    transpose_weight_keys=cls.transpose_weight_keys,
+                )
+            else:
                 state_dict = load_state_dict(
                     resolved_archive_file,
                     convert_from_hf=convert_from_hf,
                     transpose_weight_keys=cls.transpose_weight_keys,
                 )
-            else:
-                if config.tensor_parallel_degree > 1 and resolved_archive_file.endswith("model_state.pdparams"):
-                    state_dict = cls.convert_tensor_parallel(resolved_archive_file, config)
-                elif config.tensor_parallel_degree > 1 and resolved_archive_file.endswith("model.safetensors"):
-                    with safe_open(resolved_archive_file, framework="np", device="cpu") as f:
-                        loaded_keys = f.keys()
-                    tp_actions = cls.get_tensor_parallel_convert_actions(config, loaded_keys)
-                    state_dict = load_state_dict(resolved_archive_file, tp_actions, convert_from_hf=convert_from_hf)
-                else:
-                    state_dict = load_state_dict(resolved_archive_file, convert_from_hf=convert_from_hf)
 
             logger.info("Loaded weights file from disk, setting weights to model.")
 
@@ -2925,8 +2958,6 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
                 for k in list(shard.keys()):
                     if isinstance(shard[k], paddle.Tensor):
                         if save_to_hf:
-                            import ml_dtypes
-
                             shard[k] = shard.pop(k).astype("float32").cpu().numpy().astype(ml_dtypes.bfloat16)
                         else:
                             shard[k] = shard.pop(k).cpu().numpy()

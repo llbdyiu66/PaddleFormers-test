@@ -1357,6 +1357,8 @@ class ConversionMixin:
         if isinstance(transpose_weight_keys, list):
             state_dict_keys = list(state_dict.keys())
             for key in state_dict_keys:
+                if "lora" in key:
+                    continue
                 for trans_key in transpose_weight_keys:
                     if key.endswith(f".{trans_key}.weight") or key == f"{trans_key}.weight":
                         state_dict[key] = state_dict.pop(key).transpose([-1, -2])

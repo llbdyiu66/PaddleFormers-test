@@ -298,11 +298,7 @@ class Trainer:
         optimizers: Tuple[paddle.optimizer.Optimizer, paddle.optimizer.lr.LRScheduler] = (None, None),
         preprocess_logits_for_metrics: Callable[[paddle.Tensor, paddle.Tensor], paddle.Tensor] = None,
         processing_class: Optional[ImageProcessingMixin] = None,
-        **kwargs,
     ):
-
-        self.convert_from_hf = kwargs.get("convert_from_hf", False)
-        self.save_to_hf = kwargs.get("save_to_hf", False)
 
         if args is None:
             output_dir = "tmp_trainer"
@@ -312,6 +308,9 @@ class Trainer:
         self.args = args
         self.is_in_train = False
         # self.do_grad_scaling = args.fp16
+
+        self.convert_from_hf = self.args.convert_from_hf
+        self.save_to_hf = self.args.save_to_hf
 
         # memory metrics - must set up as early as possible
         self._memory_tracker = TrainerMemoryTracker(self.args.skip_memory_metrics)
