@@ -152,6 +152,7 @@ class UnifiedCheckpointHandler:
                 signal_path=signal_dir,
                 is_sync=is_sync_save,
                 state_dict_type="model_weight",
+                save_to_hf=save_to_hf,
             )
             if sharded_index is not None:
                 if isinstance(model_to_save, LoRAModel) or isinstance(model_to_save, PrefixModelForCausalLM):

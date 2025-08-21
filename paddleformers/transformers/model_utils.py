@@ -597,6 +597,17 @@ def load_state_dict(
     return state_dict
 
 
+def prepare_safe_save_state_dict(state_dict, save_to_hf=False):
+    for k in list(state_dict.keys()):
+        if isinstance(state_dict[k], paddle.Tensor):
+            if save_to_hf:
+                state_dict[k] = state_dict.pop(k).astype("float32").cpu().numpy().astype(ml_dtypes.bfloat16)
+            else:
+                state_dict[k] = state_dict.pop(k).cpu().numpy()
+    metadata = {"format": "pt"} if save_to_hf else {"format": "np"}
+    return state_dict, metadata
+
+
 def resolve_weight_file_from_hf_hub(
     repo_id: str, cache_dir: str, convert_from_hf: bool, subfolder=None, use_safetensors=False
 ):
@@ -2955,13 +2966,7 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
             if safe_serialization:
                 # At some point we will need to deal better with save_function (used for TPU and other distributed
                 # joyfulness), but for now this enough.
-                for k in list(shard.keys()):
-                    if isinstance(shard[k], paddle.Tensor):
-                        if save_to_hf:
-                            shard[k] = shard.pop(k).astype("float32").cpu().numpy().astype(ml_dtypes.bfloat16)
-                        else:
-                            shard[k] = shard.pop(k).cpu().numpy()
-                metadata = {"format": "pt"} if save_to_hf else {"format": "np"}
+                shard, metadata = prepare_safe_save_state_dict(shard, save_to_hf=save_to_hf)
                 safe_save_file(shard, os.path.join(save_directory, shard_file), metadata=metadata)
             else:
                 save_function(shard, os.path.join(save_directory, shard_file))

@@ -21,7 +21,11 @@ import paddle
 
 from ...peft import LoRAModel, PrefixModelForCausalLM
 from ...transformers.conversion_utils import ConversionMixin
-from ...transformers.model_utils import _load_state_dict_into_model, load_state_dict
+from ...transformers.model_utils import (
+    _load_state_dict_into_model,
+    load_state_dict,
+    prepare_safe_save_state_dict,
+)
 from ...transformers.utils import (
     dtype_byte_size,
     get_checkpoint_shard_files,
@@ -55,11 +59,9 @@ __all__ = [
 ]
 
 
-def save_file_sync(state_dict, path):
-    for k in list(state_dict.keys()):
-        if isinstance(state_dict[k], paddle.Tensor):
-            state_dict[k] = state_dict.pop(k).cpu().numpy()
-    safe_save_file(state_dict, path, metadata={"format": "np"})
+def save_file_sync(state_dict, path, save_to_hf=False):
+    state_dict, metadata = prepare_safe_save_state_dict(state_dict, save_to_hf=save_to_hf)
+    safe_save_file(state_dict, path, metadata=metadata)
 
 
 def save_single_card_checkpoint(model_to_save, output_dir, save_to_hf=False):
@@ -97,7 +99,7 @@ def save_single_card_checkpoint(model_to_save, output_dir, save_to_hf=False):
 
     # save checkpoint, do no support asynchronous save for single card currently.
     logger.warning("Asynchronous saving is not supported for single card environment currently.")
-    save_file_sync(state_dict, path=os.path.join(output_dir, weight_filename))
+    save_file_sync(state_dict, path=os.path.join(output_dir, weight_filename), save_to_hf=save_to_hf)
 
     save_model_config(model_to_save, output_dir)
 
