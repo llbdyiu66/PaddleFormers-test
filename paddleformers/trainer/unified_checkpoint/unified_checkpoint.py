@@ -602,10 +602,6 @@ def unified_checkpoint_into_shards(
     assert hasattr(model_to_save, "config")
 
     state_dict = get_expected_state_dict(model_to_save, concat_additional_adapter=True)
-    if save_to_hf:
-        transpose_weight_keys = getattr(model_to_save, "transpose_weight_keys", None)
-        state_dict = ConversionMixin.convert_transpose_selected_weights(state_dict, transpose_weight_keys)
-
     all_filter_keys = filter_params(model_to_save, state_dict, args)
 
     config_to_save = copy.deepcopy(model_to_save.config)
@@ -625,6 +621,10 @@ def unified_checkpoint_into_shards(
             )
         logger.info("Unified model tensor parallel weights in shards")
         state_dict = merge_tensor_parallel_with_shard(state_dict, tp_actions, all_filter_keys)
+
+    if save_to_hf:
+        transpose_weight_keys = getattr(model_to_save, "transpose_weight_keys", None)
+        state_dict = ConversionMixin.convert_transpose_selected_weights(state_dict, transpose_weight_keys)
 
     # build index json file
     index_weight_file = {}
