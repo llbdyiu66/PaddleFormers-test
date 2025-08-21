@@ -115,16 +115,9 @@ class UnifiedCheckpointHandler:
         else:
             raise ValueError("Unified checkpoint only supports PretrainedModel, LoRAModel and PrefixModelForCausalLM!")
 
-        # save hf
-        if save_to_hf:
-            transpose_weight_keys = getattr(model_to_save, "transpose_weight_keys", None)
-            ConversionMixin.convert_transpose_selected_weights(
-                get_expected_state_dict(model_to_save), transpose_weight_keys
-            )
-
         # Under non distributed environment.
         if paddle.distributed.get_world_size() <= 1:
-            save_single_card_checkpoint(model_to_save, output_dir)
+            save_single_card_checkpoint(model_to_save, output_dir, save_to_hf=save_to_hf)
             return
 
         skip_save_model_weight = False
@@ -145,7 +138,10 @@ class UnifiedCheckpointHandler:
         # save model weights
         if not skip_save_model_weight:
             state_dict, shard_file, sharded_index = unified_checkpoint_into_shards(
-                self.args, model_to_save, safe_serialization=True
+                self.args,
+                model_to_save,
+                safe_serialization=True,
+                save_to_hf=save_to_hf,
             )
             is_sync_save = True
             if "async_save" in self.args.unified_checkpoint_config:
@@ -591,6 +587,7 @@ def unified_checkpoint_into_shards(
     args,
     model_to_save,
     safe_serialization=False,
+    save_to_hf=False,
 ):
     """Get state_dict and config to save
 
@@ -605,6 +602,10 @@ def unified_checkpoint_into_shards(
     assert hasattr(model_to_save, "config")
 
     state_dict = get_expected_state_dict(model_to_save, concat_additional_adapter=True)
+    if save_to_hf:
+        transpose_weight_keys = getattr(model_to_save, "transpose_weight_keys", None)
+        state_dict = ConversionMixin.convert_transpose_selected_weights(state_dict, transpose_weight_keys)
+
     all_filter_keys = filter_params(model_to_save, state_dict, args)
 
     config_to_save = copy.deepcopy(model_to_save.config)

@@ -513,8 +513,8 @@ def load_state_dict(
     ) and is_safetensors_available():
         # Check format of the archive
         with safe_open(checkpoint_file, framework="np") as f:
-            metadata = f.metadata()
-        if metadata is None:
+            # metadata = f.metadata()
+            # if metadata is None:
             metadata = {"format": "np"}
 
         if metadata.get("format", "np") not in ["pd", "np"]:

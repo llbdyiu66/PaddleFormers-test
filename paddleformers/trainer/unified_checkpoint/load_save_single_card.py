@@ -20,6 +20,7 @@ import os
 import paddle
 
 from ...peft import LoRAModel, PrefixModelForCausalLM
+from ...transformers.conversion_utils import ConversionMixin
 from ...transformers.model_utils import _load_state_dict_into_model, load_state_dict
 from ...transformers.utils import (
     dtype_byte_size,
@@ -61,10 +62,14 @@ def save_file_sync(state_dict, path):
     safe_save_file(state_dict, path, metadata={"format": "np"})
 
 
-def save_single_card_checkpoint(model_to_save, output_dir):
+def save_single_card_checkpoint(model_to_save, output_dir, save_to_hf=False):
     """Save checkpoint for non-distributed environment."""
 
     state_dict = get_expected_state_dict(model_to_save, concat_additional_adapter=True)
+    if save_to_hf:
+        transpose_weight_keys = getattr(model_to_save, "transpose_weight_keys", None)
+        state_dict = ConversionMixin.convert_transpose_selected_weights(state_dict, transpose_weight_keys)
+
     if isinstance(model_to_save, LoRAModel) or isinstance(model_to_save, PrefixModelForCausalLM):
         weight_filename = "peft_model-00001-of-00001.safetensors"
         index_filename = SAFE_PEFT_WEIGHTS_INDEX_NAME
