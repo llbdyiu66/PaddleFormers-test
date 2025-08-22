@@ -1669,20 +1669,6 @@ class Ernie4_5PretrainedModel(PretrainedModel):
     base_model_prefix = "model"
 
     transpose_weight_keys = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
-    # packed_modules_mapping = {"qkv_proj": ["q_proj", "k_proj", "v_proj"], "up_gate_proj": ["gate_proj", "up_proj"]}
-
-    @classmethod
-    def _get_split_modules_hidden_size_mapping(cls, config):
-        q_hidden_size = config.head_dim * config.num_attention_heads
-        kv_hidden_size = config.head_dim * config.num_key_value_heads
-        split_modules_hidden_size_mapping = {
-            "q_proj": q_hidden_size,
-            "k_proj": kv_hidden_size,
-            "v_proj": kv_hidden_size,
-            "gate_proj": config.intermediate_size,
-            "up_proj": config.intermediate_size,
-        }
-        return split_modules_hidden_size_mapping
 
     @classmethod
     def _get_tensor_parallel_mappings(cls, config, is_split=True):

@@ -15,10 +15,8 @@
 from __future__ import annotations
 
 import inspect
-import json
 import os
 import re
-from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
@@ -42,14 +40,12 @@ from paddle.nn import Layer
 
 from ..quantization.quantization_utils import parse_weight_quantize_algo
 from ..utils.distributed import distributed_allgather, distributed_gather
-from ..utils.env import CONFIG_NAME, PYTORCH_WEIGHTS_NAME
 from ..utils.import_utils import (
     is_package_available,
     is_torch_available,
     is_transformers_available,
 )
 from ..utils.log import logger
-from ..utils.serialization import load_torch
 from ..utils.tools import get_env_device
 
 if TYPE_CHECKING:
@@ -1235,113 +1231,6 @@ class LogitComparer:
 class ConversionMixin:
 
     transpose_weight_keys = None
-    packed_modules_mapping = None
-
-    @classmethod
-    def support_conversion(cls, config: PretrainedConfig) -> bool:
-        """check whether the model support conversion"""
-        try:
-            # try to get the name-mapping info
-            _ = cls._get_name_mappings(config)
-        except NotImplementedError:
-            return False
-        finally:
-            return True
-
-    @classmethod
-    def convert(cls, weight_file: str, config: PretrainedConfig, cache_dir: str) -> None:
-        """the entry of converting config and converting model file
-
-        Args:
-            input_dir (str | None): the input dir which contains `pytorch_model.bin` and `config.json` file
-            config (PretrainedConfig): the PretrainedConfig instance of model
-        """
-        # FIXME(wj-Mcat): add compatibility with downstream models
-        if weight_file.endswith(".index.json"):
-            if ".safetensors." in weight_file:
-                files = [file for file in os.listdir(os.path.dirname(weight_file)) if file.startswith("model-")]
-            else:
-                files = [
-                    file for file in os.listdir(os.path.dirname(weight_file)) if file.startswith("pytorch_model-")
-                ]
-            state_dict = {}
-            for file in sorted(files):
-                sub_state_dict = load_torch(os.path.join(os.path.dirname(weight_file), file))
-                state_dict.update(sub_state_dict)
-        else:
-            state_dict = load_torch(weight_file)
-
-        # 3. convert state_dict
-        # transpose weight
-        if cls.transpose_weight_keys is None and cls.packed_modules_mapping is None:
-            name_mappings = cls._get_name_mappings(config)
-            all_layer_names = set(state_dict.keys())
-            for name_mapping in name_mappings:
-                if name_mapping.source_name not in state_dict:
-                    logger.warning(f"key<{name_mapping.source_name}> not in the pytorch weight file.")
-                    continue
-
-                state_dict[name_mapping.target_name] = name_mapping.run(state_dict, name_mapping.source_name)
-                if name_mapping.source_name in all_layer_names:
-                    all_layer_names.remove(name_mapping.source_name)
-
-            if all_layer_names:
-                logger.warning(f"There are {len(all_layer_names)} tensors not initialized:")
-                logger.warning(f"Keys: {all_layer_names}")
-
-        else:
-            state_dict = cls.convert_transpose_selected_weights(state_dict, cls.transpose_weight_keys)
-
-        # pack modules
-        if isinstance(cls.packed_modules_mapping, dict):
-            new_pack_key_values_dict = defaultdict(list)
-            for packed_key in cls.packed_modules_mapping:
-                for p_sim_key in cls.packed_modules_mapping[packed_key]:
-                    state_dict_keys = list(state_dict.keys())
-                    for key in state_dict_keys:
-                        if f".{p_sim_key}." in key:
-                            prefix_str, suffix_str = key.split(f".{p_sim_key}.")
-                            new_pack_key_values_dict[f"{prefix_str}.{packed_key}.{suffix_str}"].append(
-                                state_dict.pop(key)
-                            )
-            # pack values
-            new_pack_key_values_keys = list(new_pack_key_values_dict.keys())
-            for new_key in new_pack_key_values_keys:
-                state_dict[new_key] = paddle.concat(new_pack_key_values_dict.pop(new_key), axis=-1)
-
-        return state_dict
-
-    @classmethod
-    def convert_hf_weights(cls, state_dict: dict, config: PretrainedConfig):
-        """convert to fit HF torch weights
-
-        Args:
-            state_dict (dict): the state_dict of paddle model
-            config (PretrainedConfig): the configuration of name-mapping
-
-        Returns:
-            dict: the converted state_dict
-        """
-        # split modules
-        if isinstance(cls.packed_modules_mapping, dict):
-            split_modules_hidden_size_mapping = cls._get_split_modules_hidden_size_mapping(config)
-            state_dict_keys = list(state_dict.keys())
-            for packed_key in cls.packed_modules_mapping:
-                for key in state_dict_keys:
-                    if f".{packed_key}." in key:
-                        prefix_str, suffix_str = key.split(f".{packed_key}.")
-                        split_indices = [
-                            split_modules_hidden_size_mapping[p_sim_key]
-                            for p_sim_key in cls.packed_modules_mapping[packed_key]
-                        ]
-                        split_values = state_dict.pop(key).split(split_indices, axis=-1)
-                        for idx, p_sim_key in enumerate(cls.packed_modules_mapping[packed_key]):
-                            state_dict[f"{prefix_str}.{p_sim_key}.{suffix_str}"] = split_values[idx]
-
-        # transpose weight
-        state_dict = cls.convert_transpose_selected_weights(state_dict, cls.transpose_weight_keys)
-
-        return state_dict
 
     @staticmethod
     def convert_transpose_selected_weights(state_dict: dict, transpose_weight_keys: list):
@@ -1363,36 +1252,6 @@ class ConversionMixin:
                     if key.endswith(f".{trans_key}.weight") or key == f"{trans_key}.weight":
                         state_dict[key] = state_dict.pop(key).transpose([-1, -2])
         return state_dict
-
-    @classmethod
-    def _get_name_mappings(cls, config: PretrainedConfig) -> List[StateDictNameMapping]:
-        """get name mapping of PretrainedModel
-
-        Args:
-            config (PretrainedConfig): the configuration of name-mapping
-
-        Raises:
-            NotImplementedError:
-
-        Returns:
-            List[StateDictNameMapping]: the name-mappings of pretrained model
-        """
-        raise NotImplementedError
-
-    @classmethod
-    def _get_split_modules_hidden_size_mapping(cls, config: PretrainedConfig):
-        """get split modules hidden_size of PretrainedModel
-
-        Args:
-            config (PretrainedConfig): the configuration of name-mapping
-
-        Raises:
-            NotImplementedError:
-
-        Returns:
-            Dict[str, int]: the split modules hidden_size
-        """
-        raise NotImplementedError
 
     @classmethod
     def get_tensor_parallel_convert_actions(
@@ -1676,81 +1535,3 @@ class ConversionMixin:
             state_keys_map[keys] = new_keys
 
         return state_keys_map
-
-
-class Converter(ConversionMixin, LogitComparer):
-    """some converters are implemented in ppdiffusers, so if remove it directly, it will make ppdiffusers down.
-    TODO(wj-Mcat): this class will be removed after v2.6
-    """
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        logger.warning(
-            "`paddleformers.utils.converter` module will be deprecated soon, you "
-            "should change it to `paddleformers.transformers.conversion_utils`"
-        )
-
-    @classmethod
-    def resolve_num_layer(cls, config_or_num_layers: Union[dict, int] = None) -> int:
-        """resolve the number of transformer layer based on the key of model config, eg: `num_hidden_layers` in BertModel
-        Args:
-            config_or_num_layers (Union[dict, int], optional): the instance of config or num_layers. Defaults to None.
-        Raises:
-            ValueError: when `config_or_num_layers` is not dict/int, it will raise the error
-        Returns:
-            int: the number of transformer layer
-        """
-        from .configuration_utils import PretrainedConfig
-
-        if isinstance(config_or_num_layers, (dict, PretrainedConfig)):
-            num_layer = config_or_num_layers[cls.num_layer_key]
-        elif isinstance(config_or_num_layers, int):
-            num_layer = config_or_num_layers
-        else:
-            raise ValueError(f"the type of config_or_num_layers<{config_or_num_layers}> should be one of <dict, int>")
-
-        return num_layer
-
-    def convert(self, input_dir: str | None = None) -> None:
-        """the entry of converting config and converting model file
-
-        Args:
-            input_dir (str | None): the input dir which contains `pytorch_model.bin` and `config.json` file
-        """
-        input_dir = input_dir or getattr(self, "input_dir", None)
-        os.makedirs(input_dir, exist_ok=True)
-
-        # 1. get pytorch weight file
-        weight_file = os.path.join(input_dir, PYTORCH_WEIGHTS_NAME)
-        if not os.path.exists(weight_file):
-            raise FileNotFoundError(f"pytorch weight file<{weight_file}> not found")
-
-        config_file = os.path.join(input_dir, CONFIG_NAME)
-        if not os.path.exists(config_file):
-            raise FileNotFoundError(f"config file<{weight_file}> not found")
-
-        # 2. construct name mapping
-        # TODO(wj-Mcat): when AutoConfig is ready, construct config from AutoConfig.
-        with open(config_file, "r", encoding="utf-8") as f:
-            config = json.load(f)
-
-        state_dict = load_torch(weight_file)
-
-        # FIXME(wj-Mcat): add compatibility with downstream models
-        name_mappings = self.get_name_mapping(config)
-
-        # 3. convert state_dict
-        all_layer_names = set(state_dict.keys())
-        for name_mapping in name_mappings:
-            if name_mapping.source_name not in state_dict:
-                logger.warning(f"key<{name_mapping.source_name}> not in the pytorch weight file.")
-                continue
-
-            state_dict[name_mapping.target_name] = name_mapping.run(state_dict.pop(name_mapping.source_name))
-            all_layer_names.remove(name_mapping.source_name)
-
-        if all_layer_names:
-            logger.warning(f"There are {len(all_layer_names)} tensors not initialized:")
-            logger.warning(f"Keys: {all_layer_names}")
-
-        return state_dict

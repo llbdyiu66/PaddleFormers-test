@@ -1077,11 +1077,11 @@ class TrainingArguments:
     )
     convert_from_hf: Optional[bool] = field(
         default=False,
-        metadata={"help": "Load model from HuggingFace torch checkpoint."},
+        metadata={"help": "Load model from HuggingFace safetensors."},
     )
     save_to_hf: Optional[bool] = field(
         default=False,
-        metadata={"help": "Save model to HuggingFace torch checkpoint."},
+        metadata={"help": "Save model to HuggingFace safetensors."},
     )
 
     def __post_init__(self):

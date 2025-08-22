@@ -16,8 +16,6 @@
 import multiprocessing
 import os
 import time
-
-# from importlib.metadata import metadata
 from multiprocessing import shared_memory
 
 import paddle

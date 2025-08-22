@@ -2627,9 +2627,6 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
         #     if not os.path.exists(os.path.join(cache_dir, pretrained_model_name_or_path, subfolder, CONFIG_NAME)):
         #         config.save_pretrained(os.path.join(cache_dir, pretrained_model_name_or_path, subfolder))
 
-        # refine options for config
-        # if cls.transpose_weight_keys is None and cls.packed_modules_mapping is None:
-        # convert_from_hf = cls.support_conversion(config) and convert_from_hf
         if dtype is None:
             dtype = config.dtype
 
@@ -2669,35 +2666,6 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
             use_safetensors=use_safetensors,
             variant=variant,
         )
-
-        # if convert_from_hf and state_dict is None:
-        #     if (
-        #         resolved_archive_file.endswith(PYTORCH_WEIGHTS_NAME)
-        #         or resolved_archive_file.endswith(PYTORCH_WEIGHTS_INDEX_NAME)
-        #         or resolved_archive_file.endswith(SAFE_WEIGHTS_NAME)
-        #         or resolved_archive_file.endswith(SAFE_WEIGHTS_INDEX_NAME)
-        #     ):
-        #         # try to get the name-mapping info
-        #         convert_dir = os.path.dirname(resolved_archive_file)
-        #         logger.info(
-        #             f"Starting to convert pytorch weight file<{resolved_archive_file}> to "
-        #             f"paddle weight file<{convert_dir}> ..."
-        #         )
-        #         state_dict = cls.convert(
-        #             resolved_archive_file,
-        #             config,
-        #             # cache_dir=os.path.join(cache_dir, pretrained_model_name_or_path, subfolder),
-        #             cache_dir=convert_dir,
-        #         )
-        #     elif (
-        #         resolved_archive_file.endswith(PADDLE_WEIGHTS_NAME)
-        #         or resolved_archive_file.endswith(PADDLE_WEIGHTS_INDEX_NAME)
-        #         or resolved_archive_file.endswith(".pdparams")
-        #     ):
-        #         print(f"file: {resolved_archive_file} is paddle weight.")
-        #     else:
-        #         raise ValueError(f"Unexpected file: {resolved_archive_file} for weight conversion.")
-        #     # load pt weights early so that we know which dtype to init the model under
 
         if not is_sharded and state_dict is None:
             # 4. loading non-sharded ckpt from the state dict
