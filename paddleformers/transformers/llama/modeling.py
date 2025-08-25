@@ -1287,7 +1287,9 @@ class LlamaDecoderLayer(nn.Layer):
 
 class LlamaPretrainedModel(PretrainedModel):
     config_class = LlamaConfig
-    base_model_prefix = "llama"
+    base_model_prefix = "model"
+    transpose_weight_keys = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj", "lm_head"]
+
     pretrained_init_configuration = LLAMA_PRETRAINED_INIT_CONFIGURATION
     pretrained_resource_files_map = LLAMA_PRETRAINED_RESOURCE_FILES_MAP
     _keys_to_ignore_on_load_unexpected = [r"self_attn.rotary_emb.inv_freq"]
@@ -1494,7 +1496,7 @@ class LlamaPretrainedModel(PretrainedModel):
                                 mean=0.0,
                                 std=self.config.initializer_range
                                 if hasattr(self.config, "initializer_range")
-                                else self.llama.config.initializer_range,
+                                else self.model.config.initializer_range,
                                 shape=layer.weight.shape,
                             )
                         )
@@ -1504,7 +1506,7 @@ class LlamaPretrainedModel(PretrainedModel):
                             mean=0.0,
                             std=self.config.initializer_range
                             if hasattr(self.config, "initializer_range")
-                            else self.llama.config.initializer_range,
+                            else self.model.config.initializer_range,
                             shape=layer.weight.shape,
                         )
                     )
@@ -1996,19 +1998,19 @@ class LlamaForCausalLM(LlamaPretrainedModel):
         super().__init__(config)
         self.config = config
 
-        self.llama = LlamaModel(config)
+        self.model = LlamaModel(config)
         if config.tie_word_embeddings:
-            self.lm_head = LlamaLMHead(config, embedding_weights=self.llama.embed_tokens.weight, transpose_y=True)
+            self.lm_head = LlamaLMHead(config, embedding_weights=self.model.embed_tokens.weight, transpose_y=True)
             self.tie_weights()
         else:
             self.lm_head = LlamaLMHead(config)
         self.criterion = LlamaPretrainingCriterion(config)
 
     def get_input_embeddings(self):
-        return self.llama.embed_tokens
+        return self.model.embed_tokens
 
     def set_input_embeddings(self, value):
-        self.llama.embed_tokens = value
+        self.model.embed_tokens = value
 
     def get_output_embeddings(self):
         return self.lm_head
@@ -2017,10 +2019,10 @@ class LlamaForCausalLM(LlamaPretrainedModel):
         self.lm_head = new_embeddings
 
     def set_decoder(self, decoder):
-        self.llama = decoder
+        self.model = decoder
 
     def get_decoder(self):
-        return self.llama
+        return self.model
 
     def prepare_inputs_for_generation(
         self, input_ids, use_cache=False, past_key_values=None, inputs_embeds=None, **kwargs
@@ -2104,7 +2106,7 @@ class LlamaForCausalLM(LlamaPretrainedModel):
             )
             attention_mask = None
 
-        outputs = self.llama(
+        outputs = self.model(
             input_ids,  # [bs, seq_len]
             position_ids=position_ids,
             attention_mask=attention_mask,

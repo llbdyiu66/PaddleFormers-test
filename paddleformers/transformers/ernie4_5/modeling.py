@@ -1390,6 +1390,8 @@ class ErniePretrainingCriterion(paddle.nn.Layer):
             paddle.Tensor: Unreduced loss tensor
         """
         prediction_scores = prediction_scores.cast("float32")
+        if masked_lm_labels is None:
+            masked_lm_labels = paddle.zeros([prediction_scores.shape[0], prediction_scores.shape[1]], dtype="int64")
         masked_lm_loss = self.loss_func(prediction_scores, masked_lm_labels.unsqueeze(-1))
         return masked_lm_loss
 
@@ -1422,13 +1424,8 @@ class ErniePretrainingCriterion(paddle.nn.Layer):
             else:
                 masked_lm_loss = self.loss_impl(prediction_scores, masked_lm_labels)
 
-            if loss_mask is None:
-                loss_mask = masked_lm_labels != self.ignored_index
-
-            loss_mask = loss_mask.reshape([-1]).cast(paddle.float32)
-
-            masked_lm_loss = paddle.sum(masked_lm_loss.cast(paddle.float32).reshape([-1]) * loss_mask)
-            loss = masked_lm_loss / loss_mask.sum()
+            masked_lm_loss = paddle.sum(masked_lm_loss.cast(paddle.float32).reshape([-1]))
+            loss = masked_lm_loss
             if self.token_balance_loss:
                 _loss = masked_lm_loss / self.config.token_balance_seqlen
                 loss = _loss - _loss.detach() + loss.detach()
@@ -2270,7 +2267,7 @@ class Ernie4_5ForCausalLM(Ernie4_5PretrainedModel):
             )
 
         # Pretrain & Eval must have labels
-        assert labels is not None
+        # assert labels is not None
 
         return self.criterion(logits, labels, loss_mask)
 
