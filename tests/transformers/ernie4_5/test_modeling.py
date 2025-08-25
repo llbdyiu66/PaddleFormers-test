@@ -131,6 +131,7 @@ class Ernie4_5ModelTester:
         return Ernie4_5Config(
             vocab_size=self.vocab_size,
             hidden_size=self.hidden_size,
+            head_dim=self.head_dim,
             num_hidden_layers=self.num_hidden_layers,
             num_attention_heads=self.num_attention_heads,
             masked_softmax_fusion=self.masked_softmax_fusion,
