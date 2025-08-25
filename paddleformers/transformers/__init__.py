@@ -175,6 +175,8 @@ import_structure = {
         "mark_as_sequence_parallel_parameter",
         "AllGatherVarlenOp",
     ],
+    "ernie4_5_moe.configuration": ["Ernie4_5_MoeConfig"],
+    "ernie4_5_moe.modeling": ["Ernie4_5_MoeModel", "Ernie4_5_MoeForCausalLM"],
     "export": ["export_model"],
     "llama.configuration": [
         "LLAMA_PRETRAINED_INIT_CONFIGURATION",
