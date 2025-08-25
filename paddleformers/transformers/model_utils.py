@@ -1932,7 +1932,6 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
                     os.path.join(pretrained_model_name_or_path, subfolder, _add_variant(PYTORCH_WEIGHTS_NAME, variant))
                 ):
                     if download_hub == DownloadSource.HUGGINGFACE or convert_from_hf:
-
                         archive_file = os.path.join(
                             pretrained_model_name_or_path, subfolder, _add_variant(PYTORCH_WEIGHTS_NAME, variant)
                         )
@@ -1999,8 +1998,8 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
                         f"Error no files {filenames} found in repo {pretrained_model_name_or_path}."
                     )
                 elif "pytorch_model.bin" in str(resolved_archive_file):
-                    if download_hub == DownloadSource.AISTUDIO and not convert_from_hf:
 
+                    if download_hub == DownloadSource.AISTUDIO and not convert_from_hf:
                         raise ValueError(
                             f"Download pytorch weight in "
                             f" {resolved_archive_file}. Please set convert_from_hf=True in from_pretrained. eg, Model.from_pretrained(model_name, convert_from_hf=True) "
@@ -2589,7 +2588,6 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
 
         # from_hf_hub default enable convert_from_hf
         if download_hub == DownloadSource.HUGGINGFACE and convert_from_hf is None:
-
             logger.warning(
                 "If you are attempting to load weights from Hugging Face Hub and want to disable the default behavior of considering torch weights,"
                 " you can set ·convert_from_hf=False·. By default, `convert_from_hf` is set to `True`. "
