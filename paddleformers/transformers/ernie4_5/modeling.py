@@ -194,7 +194,7 @@ class Ernie4_5Attention(nn.Layer):
             self.hidden_size,
             q_hidden_size,
             has_bias=config.use_bias,
-            gather_output=False,
+            config=config,
             fuse_matmul_bias=config.fuse_linear,
             tp_plan="colwise",
         )
@@ -202,7 +202,7 @@ class Ernie4_5Attention(nn.Layer):
             self.hidden_size,
             kv_hidden_size,
             has_bias=config.use_bias,
-            gather_output=False,
+            config=config,
             fuse_matmul_bias=config.fuse_linear,
             tp_plan="colwise",
         )
@@ -210,7 +210,7 @@ class Ernie4_5Attention(nn.Layer):
             self.hidden_size,
             kv_hidden_size,
             has_bias=config.use_bias,
-            gather_output=False,
+            config=config,
             fuse_matmul_bias=config.fuse_linear,
             tp_plan="colwise",
         )
