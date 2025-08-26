@@ -18,7 +18,6 @@ import math
 from functools import partial
 from typing import Optional, Tuple
 
-# import numpy as np
 import paddle
 from paddle import nn
 from paddle.distributed.fleet.utils import recompute
@@ -181,17 +180,6 @@ class Ernie4_5Attention(nn.Layer):
         else:
             q_hidden_size = kv_hidden_size = self.head_dim * config.num_attention_heads
 
-        # qkv_hidden_size = q_hidden_size + kv_hidden_size * 2
-
-        # self.qkv_proj = GeneralLinear.create(
-        #     self.hidden_size,
-        #     qkv_hidden_size,
-        #     has_bias=config.use_bias,
-        #     config=config,
-        #     fuse_matmul_bias=config.fuse_linear,
-        #     tp_plan="colwise",
-        # )
-
         self.q_proj = GeneralLinear.create(
             self.hidden_size,
             q_hidden_size,
@@ -269,15 +257,6 @@ class Ernie4_5Attention(nn.Layer):
             q_len = max_sequence_length
         else:
             bsz, q_len, _ = hidden_states.shape
-
-        query_states = key_states = value_states = None
-
-        # mix_layer = self.qkv_proj(hidden_states)
-        # query_states, key_states, value_states = paddle.split(
-        #     mix_layer.reshape([bsz, q_len, -1, self.head_dim]),
-        #     [self.num_heads, self.num_key_value_heads, self.num_key_value_heads],
-        #     axis=2,
-        # )
 
         query_states = self.q_proj(hidden_states).reshape([bsz, q_len, -1, self.head_dim])
         key_states = self.k_proj(hidden_states).reshape([bsz, q_len, -1, self.head_dim])
@@ -983,7 +962,6 @@ class Ernie4_5ForCausalLM(Ernie4_5PretrainedModel):
 
         hidden_states = outputs.last_hidden_state
 
-        # if isinstance(self.criterion, ErnieDPOCriterion):
         if self.criterion.loss_type == "dpo":
             logits = self.lm_head(hidden_states)
             chosen_labels = kwargs.get("chosen_labels", None)
