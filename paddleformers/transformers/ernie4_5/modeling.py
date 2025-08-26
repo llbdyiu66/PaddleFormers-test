@@ -284,7 +284,7 @@ class Ernie4_5Attention(nn.Layer):
         value_states = self.v_proj(hidden_states).reshape([bsz, q_len, -1, self.head_dim])
 
         if attn_mask_start_row_indices is None and attention_mask is None:
-            self.attn_implementation = "sdpa"
+            self.attn_implementation = "eager"
         attention_interface = ALL_ATTENTION_FUNCTIONS[self.attn_implementation]
 
         # apply rope

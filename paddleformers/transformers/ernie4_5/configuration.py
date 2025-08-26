@@ -31,7 +31,7 @@ ERNIE_PRETRAINED_INIT_CONFIGURATION = {
         "pad_token_id": 0,
         "use_cache": False,
         "recompute": False,
-        "use_flash_attentionn": True,
+        "use_flash_attention": False,
         "use_pure_fp16": False,
     },
 }
