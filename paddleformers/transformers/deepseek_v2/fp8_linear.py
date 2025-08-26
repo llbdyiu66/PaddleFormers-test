@@ -86,7 +86,7 @@ def fp8_linear(
         return original_linear(x, weight, bias)
 
 
-paddle.nn.functional.linear = fp8_linear
+# paddle.nn.functional.linear = fp8_linear
 
 
 def register_scale(self):
