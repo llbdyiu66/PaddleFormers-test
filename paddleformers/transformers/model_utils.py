@@ -30,7 +30,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 import aistudio_sdk
-import ml_dtypes
+
+# import ml_dtypes
 import numpy as np
 import paddle
 import paddle.nn as nn
@@ -128,7 +129,8 @@ def unwrap_optimizer(optimizer, optimizer_instances=()):
 
 
 if is_safetensors_available():
-    from safetensors.numpy import save_file as safe_save_file
+    # from safetensors.numpy import save_file as safe_save_file
+    from safetensors.paddle import save_file as safe_save_file
 
     from ..utils.safetensors import fast_load_file as safe_load_file
 
@@ -423,7 +425,8 @@ def _load_part_state_dict(
                 and not key.endswith("_scale")
             ):
                 # numpy.array -> paddle.tensor
-                weight = paddle.Tensor.__call__(py_safe_slice_[:], zero_copy=True)
+                # weight = paddle.Tensor.__call__(py_safe_slice_[:], zero_copy=True)
+                weight = py_safe_slice_[:]
                 weight = _transpose_hf_weight(key, weight)
                 key_name = key.split(".weight")[0]
                 quant_key_name = key_name + ".quant_weight"
@@ -467,10 +470,12 @@ def _load_part_state_dict(
                     else:
                         weight = py_safe_slice_[:]
                 if not return_numpy and device == "expected":
-                    with device_guard():
-                        weight = paddle.Tensor.__call__(weight, zero_copy=True)
+                    # with device_guard():
+                    # weight = paddle.Tensor.__call__(weight, zero_copy=True)
                     weight = weight._copy_to(paddle.framework._current_expected_place(), False)
                 weight = _transpose_hf_weight(key, weight)
+                if return_numpy:
+                    weight = weight.numpy()
                 part_state_dict[key] = weight
 
         for key in keys:
@@ -481,9 +486,11 @@ def _load_part_state_dict(
             ):
                 scale = f.get_tensor(key)
                 if not return_numpy and device == "expected":
-                    with device_guard():
-                        scale = paddle.Tensor.__call__(scale, zero_copy=True)
+                    # with device_guard():
+                    #     scale = paddle.Tensor.__call__(scale, zero_copy=True)
                     scale = scale._copy_to(paddle.framework._current_expected_place(), False)
+                if return_numpy:
+                    scale = scale.numpy()
                 scale_dict[key] = scale
     return part_state_dict, scale_dict
 
@@ -570,13 +577,23 @@ def load_state_dict(
                         scale_dict.update(res_scale_dict)
 
             if not return_numpy:
-                if device == "cpu":
-                    with device_guard():
-                        for k in list(state_dict.keys()):
-                            state_dict[k] = paddle.Tensor.__call__(state_dict.pop(k), zero_copy=True)
-                elif device == "pin_memory":
+                # if device == "cpu":
+                #     with device_guard():
+                #         for k in list(state_dict.keys()):
+                #             state_dict[k] = paddle.Tensor.__call__(state_dict.pop(k), zero_copy=True)
+                # elif device == "pin_memory":
+                if device == "pin_memory":
                     for k in list(state_dict.keys()):
-                        state_dict[k] = paddle.to_tensor(state_dict.pop(k), place=paddle.CUDAPinnedPlace())
+                        # state_dict[k] = paddle.to_tensor(state_dict.pop(k), place=paddle.CUDAPinnedPlace())
+                        pd_tensor = state_dict.pop(k)
+                        state_dict[k] = (
+                            pd_tensor
+                            if pd_tensor.place == paddle.CUDAPinnedPlace()
+                            else pd_tensor.to(paddle.CUDAPinnedPlace())
+                        )
+            else:
+                for k in list(state_dict.keys()):
+                    state_dict[k] = state_dict.pop(k).numpy()
 
             if len(scale_dict) != 0:
                 if ckpt_quant_stage == "O0":
@@ -599,9 +616,10 @@ def prepare_safe_save_state_dict(state_dict, save_to_hf=False):
     for k in list(state_dict.keys()):
         if isinstance(state_dict[k], paddle.Tensor):
             if save_to_hf:
-                state_dict[k] = state_dict.pop(k).astype("float32").cpu().numpy().astype(ml_dtypes.bfloat16)
-            else:
-                state_dict[k] = state_dict.pop(k).cpu().numpy()
+                # state_dict[k] = state_dict.pop(k).astype("float32").cpu().numpy().astype(ml_dtypes.bfloat16)
+                state_dict[k] = state_dict.pop(k).astype("bfloat16")
+            # else:
+            # state_dict[k] = state_dict.pop(k).cpu().numpy()
     metadata = {"format": "pt"} if save_to_hf else {"format": "np"}
     return state_dict, metadata
 
@@ -1996,7 +2014,6 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
                         f"Error no files {filenames} found in repo {pretrained_model_name_or_path}."
                     )
                 elif "pytorch_model.bin" in str(resolved_archive_file):
-
                     if download_hub == DownloadSource.AISTUDIO and not convert_from_hf:
                         raise ValueError(
                             f"Download pytorch weight in "
@@ -2575,9 +2592,7 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
             logger.warning("`load_state_as_np` is deprecated,  please delete it!")
 
         model_kwargs = kwargs
-
         if convert_from_hf is None and download_hub == DownloadSource.MODELSCOPE:
-
             logger.warning(
                 "If you are attempting to load weights from ModelScope Hub and want to disable the default behavior of considering torch weights,"
                 " you can set ·convert_from_hf=False·. By default, `convert_from_hf` is set to `True`. "
