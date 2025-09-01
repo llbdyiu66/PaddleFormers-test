@@ -584,31 +584,31 @@ def load_state_dict(
                     state_dict.update(res_state_dict)
                     scale_dict.update(res_scale_dict)
 
-            if not return_numpy:
-                # if device == "cpu":
-                #     with device_guard():
-                #         for k in list(state_dict.keys()):
-                #             state_dict[k] = paddle.Tensor.__call__(state_dict.pop(k), zero_copy=True)
-                # elif device == "pin_memory":
-                if device == "pin_memory":
-                    for k in list(state_dict.keys()):
-                        # state_dict[k] = paddle.to_tensor(state_dict.pop(k), place=paddle.CUDAPinnedPlace())
-                        pd_tensor = state_dict.pop(k)
-                        state_dict[k] = (
-                            pd_tensor
-                            if pd_tensor.place == paddle.CUDAPinnedPlace()
-                            else pd_tensor.to(paddle.CUDAPinnedPlace())
-                        )
-            else:
+        if not return_numpy:
+            # if device == "cpu":
+            #     with device_guard():
+            #         for k in list(state_dict.keys()):
+            #             state_dict[k] = paddle.Tensor.__call__(state_dict.pop(k), zero_copy=True)
+            # elif device == "pin_memory":
+            if device == "pin_memory":
                 for k in list(state_dict.keys()):
-                    state_dict[k] = state_dict.pop(k).numpy()
+                    # state_dict[k] = paddle.to_tensor(state_dict.pop(k), place=paddle.CUDAPinnedPlace())
+                    pd_tensor = state_dict.pop(k)
+                    state_dict[k] = (
+                        pd_tensor
+                        if pd_tensor.place == paddle.CUDAPinnedPlace()
+                        else pd_tensor.to(paddle.CUDAPinnedPlace())
+                    )
+        else:
+            for k in list(state_dict.keys()):
+                state_dict[k] = state_dict.pop(k).numpy()
 
-            if len(scale_dict) != 0:
-                if ckpt_quant_stage == "O0":
-                    raise ValueError('optimizer weight has quantization scales but `ckpt_quant_stage` is set to "O0"')
-                state_dict = dequant_unified_optimizer(state_dict, ckpt_quant_stage, scale_dict, use_pd=True)
+        if len(scale_dict) != 0:
+            if ckpt_quant_stage == "O0":
+                raise ValueError('optimizer weight has quantization scales but `ckpt_quant_stage` is set to "O0"')
+            state_dict = dequant_unified_optimizer(state_dict, ckpt_quant_stage, scale_dict, use_pd=True)
 
-            return state_dict
+        return state_dict
 
     # load from hf but not safetensors checkpoint
     if convert_from_hf:
