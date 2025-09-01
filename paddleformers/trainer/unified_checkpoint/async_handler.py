@@ -26,7 +26,6 @@ from ...transformers.utils import is_safetensors_available
 from ...utils.log import logger
 
 if is_safetensors_available():
-    # from safetensors.numpy import save_file as safe_save_file
     from safetensors.paddle import save_file as safe_save_file
 
 from ...quantization.unified_checkpoint_quantization import quant_unified_optimizer

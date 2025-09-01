@@ -21,8 +21,6 @@ import inspect
 import json
 import os
 import re
-
-# import sys
 import tempfile
 import warnings
 from contextlib import contextmanager
@@ -31,8 +29,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 import aistudio_sdk
-
-# import ml_dtypes
 import numpy as np
 import paddle
 import paddle.nn as nn
@@ -130,17 +126,9 @@ def unwrap_optimizer(optimizer, optimizer_instances=()):
 
 
 if is_safetensors_available():
-    # from safetensors.numpy import save_file as safe_save_file
-
     from safetensors import safe_open
     from safetensors.paddle import load_file as safe_load_file
     from safetensors.paddle import save_file as safe_save_file
-
-    # from ..utils.safetensors import fast_load_file as safe_load_file
-    # if sys.platform.startswith("win"):
-    #     from safetensors import safe_open
-    # else:
-    #     from ..utils.safetensors import fast_safe_open as safe_open
 
 
 def prune_linear_layer(layer: nn.Linear, index: paddle.Tensor, dim: int = 0) -> nn.Linear:
@@ -427,8 +415,6 @@ def _load_part_state_dict(
                 and key.split(".weight")[0] in quantization_linear_list
                 and not key.endswith("_scale")
             ):
-                # numpy.array -> paddle.tensor
-                # weight = paddle.Tensor.__call__(py_safe_slice_[:], zero_copy=True)
                 weight = py_safe_slice_[:]
                 weight = _transpose_hf_weight(key, weight)
                 key_name = key.split(".weight")[0]
@@ -468,17 +454,9 @@ def _load_part_state_dict(
                     else:
                         weight = tp_fn(py_safe_slice_)
                 else:
-                    # if len(py_safe_slice_.shape) == 0:
-                    #     weight = py_safe_slice_.get()
-                    # else:
-                    #     weight = py_safe_slice_[:]
                     weight = py_safe_slice_[:]
 
-                # print("weight place: ", weight.place) # Place(cpu)
-
                 if not return_numpy and device == "expected":
-                    # with device_guard():
-                    # weight = paddle.Tensor.__call__(weight, zero_copy=True)
                     weight = weight._copy_to(paddle.framework._current_expected_place(), False)
                 weight = _transpose_hf_weight(key, weight)
                 if return_numpy:
@@ -493,8 +471,6 @@ def _load_part_state_dict(
             ):
                 scale = f.get_tensor(key)
                 if not return_numpy and device == "expected":
-                    # with device_guard():
-                    #     scale = paddle.Tensor.__call__(scale, zero_copy=True)
                     scale = scale._copy_to(paddle.framework._current_expected_place(), False)
                 if return_numpy:
                     scale = scale.numpy()
@@ -525,19 +501,6 @@ def load_state_dict(
     if (
         checkpoint_file.endswith(".safetensors") or re.search(r"\.safetensors_shard_\d{4}$", checkpoint_file)
     ) and is_safetensors_available():
-        # Check format of the archive
-        # with safe_open(checkpoint_file, framework="paddle") as f:
-        #     metadata = {"format": "np"}
-
-        # if metadata.get("format", "np") not in ["pd", "np"]:
-        #     raise OSError(
-        #         f"The safetensors archive passed at {checkpoint_file} does not contain the valid metadata. Make sure "
-        #         "you save your model with the `save_pretrained` method."
-        #     )
-        # if metadata.get("format", "np") == "pd":
-        #     raise ValueError("Currently unsupport paddle weights file, use numpy instead.")
-        # if metadata.get("format", "np") == "np":
-
         thread_num = int(os.environ.get("LOAD_STATE_DICT_THREAD_NUM", "1"))
         if thread_num > 1:
             logger.info(f"Set loading state_dict thread num to {thread_num}")
@@ -585,14 +548,8 @@ def load_state_dict(
                     scale_dict.update(res_scale_dict)
 
         if not return_numpy:
-            # if device == "cpu":
-            #     with device_guard():
-            #         for k in list(state_dict.keys()):
-            #             state_dict[k] = paddle.Tensor.__call__(state_dict.pop(k), zero_copy=True)
-            # elif device == "pin_memory":
             if device == "pin_memory":
                 for k in list(state_dict.keys()):
-                    # state_dict[k] = paddle.to_tensor(state_dict.pop(k), place=paddle.CUDAPinnedPlace())
                     pd_tensor = state_dict.pop(k)
                     state_dict[k] = (
                         pd_tensor
@@ -614,6 +571,9 @@ def load_state_dict(
     if convert_from_hf:
         state_dict = load_torch(checkpoint_file)
         state_dict = ConversionMixin.convert_transpose_selected_weights(state_dict, transpose_weight_keys)
+        if return_numpy:
+            for k in list(state_dict.keys()):
+                state_dict[k] = state_dict.pop(k).numpy()
         return state_dict
 
     state_dict = paddleformers_load(checkpoint_file, map_location="cpu")
@@ -624,10 +584,7 @@ def prepare_safe_save_state_dict(state_dict, save_to_hf=False):
     for k in list(state_dict.keys()):
         if isinstance(state_dict[k], paddle.Tensor):
             if save_to_hf:
-                # state_dict[k] = state_dict.pop(k).astype("float32").cpu().numpy().astype(ml_dtypes.bfloat16)
-                state_dict[k] = state_dict.pop(k).contiguous().astype("bfloat16")
-            # else:
-            # state_dict[k] = state_dict.pop(k).cpu().numpy()
+                state_dict[k] = state_dict.pop(k).contiguous().astype(paddle.bfloat16)
     metadata = {"format": "pt"} if save_to_hf else {"format": "np"}
     return state_dict, metadata
 
