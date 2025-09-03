@@ -219,7 +219,7 @@ class AsyncCheckpointHandler:
                     state_dict = quant_unified_optimizer(
                         state_dict, state_dict_type, ckpt_quant_stage, async_save=True
                     )  # ckpt quantization
-                metadata = {"format": "pt"} if save_to_hf else {"format": "np"}
+                metadata = {"format": "pt"} if save_to_hf else {"format": "paddle"}
                 safe_save_file(state_dict, path, metadata=metadata)
                 del state_dict
                 saved_signal_path = os.path.join(signal_path, f".{state_dict_type}.done.{global_rank}")

@@ -585,7 +585,7 @@ def prepare_safe_save_state_dict(state_dict, save_to_hf=False):
         if isinstance(state_dict[k], paddle.Tensor):
             if save_to_hf:
                 state_dict[k] = state_dict.pop(k).contiguous().astype(paddle.bfloat16)
-    metadata = {"format": "pt"} if save_to_hf else {"format": "np"}
+    metadata = {"format": "pt"} if save_to_hf else {"format": "paddle"}
     return state_dict, metadata
 
 
