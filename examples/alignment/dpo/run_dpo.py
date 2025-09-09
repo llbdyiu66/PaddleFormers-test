@@ -28,6 +28,7 @@ from dpo_argument import (
 from dpo_estimate_training import dpo_estimate_training
 
 from paddleformers.datasets.dpo import collate_fn, create_dataset
+from paddleformers.nn.attention import AttentionInterface
 from paddleformers.peft import LoRAConfig, LoRAModel
 from paddleformers.trainer import (
     IntervalStrategy,
@@ -63,6 +64,11 @@ def main():
 
     paddle.set_device(training_args.device)
     set_seed(training_args.seed)
+
+    avaible_attn_impl = AttentionInterface._global_mapping.keys()
+    if model_args.attn_impl not in avaible_attn_impl:
+        raise ValueError(f"Invalid attn_impl: {model_args.attn_impl}, available attn_impl: {avaible_attn_impl}")
+
     if dpo_config.loss_type == "orpo":
         dpo_config.reference_free = True
         dpo_config.sft_loss_ratio = 1.0
@@ -119,6 +125,8 @@ def main():
         dtype=dtype,
         download_hub=model_args.download_hub,
     )
+    model_config._attn_implementation = model_args.attn_impl
+
     LlmMetaConfig.set_llm_config(model_config, training_args)
 
     if not dpo_config.reference_free and not dpo_config.lora:
@@ -157,11 +165,8 @@ def main():
             ref_model = None
     if training_args.pipeline_parallel_degree > 1:
         model.config.dpo_config = None
-    if model_args.flash_mask and not model.config.use_flash_attention:
-        logger.warning("`flash_mask` must use with zero padding and flash attention.")
-        model.config.use_flash_attention = True
 
-    if model_args.flash_mask and not any(isinstance(model, cls) for cls in flash_mask_support_list):
+    if model_args.attn_impl == "flashmask" and not any(isinstance(model, cls) for cls in flash_mask_support_list):
         raise NotImplementedError(f"{model.__class__} not support flash mask.")
 
     if model_args.tokenizer_name_or_path is not None:
