@@ -901,6 +901,10 @@ class TrainingArguments:
         default=None,
         metadata={"help": "The path to a folder with a valid checkpoint for your model."},
     )
+    resume_from_huggingface_ckpt: Optional[str] = field(
+        default=None,
+        metadata={"help": "The path to a folder with a valid huggingface checkpoint for your model."},
+    )
     auto_parallel_resume_form_hybrid_parallel: Optional[bool] = field(
         default=False,
         metadata={"help": "Whether hybrid parallel checkpoints be loaded in auto parallel mode."},
@@ -1087,6 +1091,10 @@ class TrainingArguments:
     save_to_hf: Optional[bool] = field(
         default=True,
         metadata={"help": "Save model to HuggingFace safetensors."},
+    )
+    reorder_pipeline_priority: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Controls the parallel execution order. False (pp first), True (sharding first)."},
     )
 
     def __post_init__(self):
@@ -1405,12 +1413,15 @@ class TrainingArguments:
                     else:
                         order = ["dp", "sharding", "pp", "mp"]
                 if self.use_expert_parallel:
-                    if self.moe_sharding_parallel_degree >= 1 and self.expert_parallel_degree > 1:
-                        order.insert(-1, "ep")
-                        sd_idx = order.index("sharding")
-                        # if pp_first, the order = ["dp", "pp", "moe_sharding", "sharding", "sep", "ep", "mp"]
-                        # if sharding_first, the order is ["dp", "moe_sharding", "sharding", "pp", "sep", "ep", "mp"]
-                        order.insert(sd_idx, "moe_sharding")
+                    if not self.reorder_pipeline_priority:
+                        if self.moe_sharding_parallel_degree >= 1 and self.expert_parallel_degree > 1:
+                            order.insert(-1, "ep")
+                            sd_idx = order.index("sharding")
+                            # if pp_first, the order = ["dp", "pp", "moe_sharding", "sharding", "sep", "ep", "mp"]
+                            # if sharding_first, the order is ["dp", "moe_sharding", "sharding", "pp", "sep", "ep", "mp"]
+                            order.insert(sd_idx, "moe_sharding")
+                    else:
+                        order = order[1:-1] + ["dp", "mp"]
 
                 if is_segment_parallel_supported():
                     hybrid_configs = {
@@ -1563,6 +1574,10 @@ class TrainingArguments:
 
                 fleet.init(is_collective=True, strategy=strategy)
                 logger.info(strategy)
+
+                if self.reorder_pipeline_priority:
+                    if self.expert_parallel_degree > 1:
+                        self.add_moe_comm_group()
 
         elif self.enable_auto_parallel:
             self.tensor_parallel_degree = max(self.tensor_parallel_degree, 1)
