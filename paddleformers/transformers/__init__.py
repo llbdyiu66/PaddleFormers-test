@@ -18,6 +18,7 @@ from contextlib import suppress
 from typing import TYPE_CHECKING
 from ..utils.lazy_import import _LazyModule
 
+
 # from .auto.modeling import AutoModelForCausalLM
 import_structure = {
     "kto_criterion": [
@@ -35,10 +36,10 @@ import_structure = {
         "BPETokenizer",
         "tokenize_chinese_chars",
         "is_chinese_char",
-        "AddedToken",
         "normalize_chars",
         "tokenize_special_chars",
         "convert_to_unicode",
+        "AddedToken",
     ],
     "attention_utils": ["create_bigbird_rand_mask_idx_list"],
     "tensor_parallel_utils": [],
@@ -48,7 +49,7 @@ import_structure = {
     "feature_extraction_utils": ["BatchFeature", "FeatureExtractionMixin"],
     "image_processing_utils": ["ImageProcessingMixin"],
     "moe_gate": ["PretrainedMoEGate", "MoEGateMixin"],
-    "token_dispatcher": [],
+    "token_dispatcher": ["_DispatchManager"],
     "moe_layer": ["combining", "_AllToAll", "MoELayer", "dispatching", "MoEFlexTokenLayer"],
     "bert.modeling": [
         "BertForSequenceClassification",
@@ -168,9 +169,13 @@ import_structure = {
     ],
     "deepseek_v3.modeling_pp": ["DeepseekV3ForCausalLMPipe"],
     "ernie4_5.configuration": ["Ernie4_5Config"],
-    "ernie4_5.modeling": ["Ernie4_5Model", "Ernie4_5ForCausalLM"],
+    "ernie4_5.modeling": ["Ernie4_5Model", "Ernie4_5ForCausalLM", "Ernie4_5ForCausalLMPipe"],
     "ernie4_5.tokenizer": ["Ernie4_5Tokenizer"],
+    "ernie4_5_moe.configuration": ["Ernie4_5_MoeConfig"],
+    "ernie4_5_moe.modeling": ["Ernie4_5_MoeModel", "Ernie4_5_MoeForCausalLM", "Ernie4_5_MoeForCausalLMPipe"],
     "export": ["export_model"],
+    "gpt_oss.configuration": ["GptOssConfig"],
+    "gpt_oss.modeling": ["GptOssModel", "GptOssForCausalLM", "GptOssForCausalLMPipe"],
     "llama.configuration": [
         "LLAMA_PRETRAINED_INIT_CONFIGURATION",
         "LlamaConfig",
@@ -286,12 +291,12 @@ import_structure = {
         "Qwen2Model",
         "Qwen2PretrainedModel",
         "Qwen2ForCausalLM",
+        "Qwen2ForCausalLMPipe",
         "Qwen2PretrainingCriterion",
         "Qwen2ForSequenceClassification",
         "Qwen2ForTokenClassification",
         "Qwen2SentenceEmbedding",
     ],
-    "qwen2.modeling_pp": ["Qwen2ForCausalLMPipe"],
     "qwen2.tokenizer": ["Qwen2Tokenizer"],
     "qwen2.tokenizer_fast": ["Qwen2TokenizerFast"],
     "qwen2_moe.configuration": ["Qwen2MoeConfig"],
@@ -299,28 +304,28 @@ import_structure = {
         "Qwen2MoeModel",
         "Qwen2MoePretrainedModel",
         "Qwen2MoeForCausalLM",
+        "Qwen2MoeForCausalLMPipe",
         "Qwen2MoePretrainingCriterion",
     ],
-    "qwen2_moe.modeling_pp": ["Qwen2MoeForCausalLMPipe"],
     "qwen3.configuration": ["Qwen3Config"],
     "qwen3.modeling": [
         "Qwen3Model",
         "Qwen3PretrainedModel",
         "Qwen3ForCausalLM",
+        "Qwen3ForCausalLMPipe",
         "Qwen3PretrainingCriterion",
         "Qwen3ForSequenceClassification",
         "Qwen3ForTokenClassification",
         "Qwen3SentenceEmbedding",
     ],
-    "qwen3.modeling_pp": ["Qwen3ForCausalLMPipe"],
     "qwen3_moe.configuration": ["Qwen3MoeConfig"],
     "qwen3_moe.modeling": [
         "Qwen3MoeModel",
         "Qwen3MoePretrainedModel",
         "Qwen3MoeForCausalLM",
+        "Qwen3MoeForCausalLMPipe",
         "Qwen3MoePretrainingCriterion",
     ],
-    "qwen3_moe.modeling_pp": ["Qwen3MoeForCausalLMPipe"],
     "ernie4_5vl.tokenizer": ["Ernie4_5_VLTokenizer"],
     "ernie4_5vl": [],
     "bert": [],
@@ -330,10 +335,14 @@ import_structure = {
     "qwen": [],
     "deepseek_v2": [],
     "deepseek_v3": [],
-    "ernie4_5": [],
+    "ernie4_5": ["Ernie4_5DecoderLayer", "Ernie4_5Model", "Ernie4_5_ForCausalLM"],
+    "ernie4_5_moe": ["Ernie4_5_MoeDecoderLayer", "Ernie4_5_MoeModel", "Ernie4_5_MoeForCausalLM"],
     "qwen2_moe": [],
     "qwen3_moe": [],
+    "glm4_moe": ["Glm4MoeForCausalLMPipe", "Glm4MoeModel", "Glm4MoeForCausalLM"],
     "auto": ["AutoModelForCausalLM"],
+    "legacy.tokenizer_utils_base": ["EncodingFast"],
+    "legacy": [],
 }
 
 if TYPE_CHECKING:
@@ -386,6 +395,7 @@ if TYPE_CHECKING:
     from .deepseek_v2 import *
     from .deepseek_v3 import *
     from .ernie4_5 import *
+    from .ernie4_5_moe import *
     from .llama import *
     from .optimization import *
     from .qwen import *
@@ -393,6 +403,8 @@ if TYPE_CHECKING:
     from .qwen2_moe import *
     from .qwen3 import *
     from .qwen3_moe import *
+    from .glm4_moe import *
+    from .gpt_oss import *
 else:
     sys.modules[__name__] = _LazyModule(
         __name__,

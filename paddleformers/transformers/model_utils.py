@@ -248,7 +248,7 @@ def apply_chunking_to_forward(
         # apply forward fn to every tuple
         output_chunks = tuple(forward_fn(*input_tensors_chunk) for input_tensors_chunk in zip(*input_tensors_chunks))
         # concatenate output at same dimension
-        return paddle.concat(output_chunks, axis=chunk_dim)
+        return paddle.cat(output_chunks, axis=chunk_dim)
 
     return forward_fn(*input_tensors)
 
@@ -384,7 +384,7 @@ def _load_part_state_dict(
     def _is_need_transpose(key):
         if "lora" not in key and convert_from_hf and isinstance(transpose_weight_keys, list):
             for trans_key in transpose_weight_keys:
-                if key.endswith(f".{trans_key}.weight") or key == f"{trans_key}.weight":
+                if re.search(f"\.{trans_key}\.weight$", key) or re.fullmatch(f"^{trans_key}\.weight$", key):
                     return True
         return False
 
@@ -583,7 +583,7 @@ def load_state_dict(
 def prepare_safe_save_state_dict(state_dict, save_to_hf=False):
     for k in list(state_dict.keys()):
         if isinstance(state_dict[k], paddle.Tensor):
-            if save_to_hf:
+            if state_dict[k].dtype == paddle.bfloat16:
                 state_dict[k] = state_dict.pop(k).contiguous().astype(paddle.bfloat16)
     metadata = {"format": "pt"} if save_to_hf else {"format": "paddle"}
     return state_dict, metadata
@@ -1436,14 +1436,24 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
         Returns:
             nn.Embedding: embedding of model
         """
-        base_model = getattr(self, self.base_model_prefix, self)
-        if base_model is not self:
-            return base_model.get_input_embeddings()
+        name = getattr(self, "_input_embed_layer", "embed_tokens")
+        default_embedding = getattr(self, name, None)
+        if default_embedding is not None:
+            return default_embedding
+        base_model = getattr(self, self.base_model_prefix, None)
 
-        raise NotImplementedError(
-            f"model of {type(base_model)} has not implemented the `get_input_embeddings`"
-            " or `set_input_embeddings` method"
-        )
+        if hasattr(self, self.base_model_prefix) and hasattr(base_model, "embed_tokens"):
+            return base_model.embed_tokens
+        elif hasattr(self, "embed_tokens"):
+            return self.embed_tokens
+        else:
+            if base_model is not None:
+                return base_model.get_input_embeddings()
+
+            raise NotImplementedError(
+                f"model of {type(base_model)} has not implemented the `get_input_embeddings`"
+                " or `set_input_embeddings` method"
+            )
 
     def set_input_embeddings(self, value: Embedding):
         """set new input embedding for model
@@ -1454,21 +1464,66 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
         Raises:
             NotImplementedError: Model has not implement `set_input_embeddings` method
         """
-        base_model = getattr(self, self.base_model_prefix, self)
-        if base_model is not self:
-            return base_model.set_input_embeddings(value)
-        raise NotImplementedError(
-            f"model of {type(base_model)} has not implemented the `get_input_embeddings`"
-            " or `set_input_embeddings` method"
-        )
+        base_model = getattr(self, self.base_model_prefix, None)
+
+        name = getattr(self, "_input_embed_layer", "embed_tokens")
+        if base_model is not None and hasattr(base_model, name):
+            setattr(base_model, name, value)
+        # 2) as well as vanilla decoder‑only architectures
+        elif hasattr(self, name):
+            setattr(self, name, value)
+        elif base_model is not None:
+            base_model.set_input_embeddings(value)
+        else:
+            raise NotImplementedError(
+                f"model of {type(base_model)} has not implemented the `get_input_embeddings`"
+                " or `set_input_embeddings` method"
+            )
 
     def get_output_embeddings(self) -> Optional[Embedding]:
-        """To be overwrited for models with output embeddings
-
-        Returns:
-            Optional[Embedding]: the otuput embedding of model
         """
+        Gets the model's output embedding, defaulting to getting new_embeddings from lm_head.
+        """
+        if not hasattr(self, "lm_head"):
+            return None
+        try:
+            self.get_input_embeddings()
+        except NotImplementedError:
+            return None
+        return self.lm_head
+
+    def set_output_embeddings(self, new_embeddings):
+        """
+        Sets the model's output embedding, defaulting to setting new_embeddings to lm_head.
+        """
+        if getattr(self, "lm_head"):
+            self.lm_head = new_embeddings
+
+    def get_decoder(self):
+        """
+        Gets the decoder of the model.
+        """
+        if hasattr(self, "decoder"):
+            return self.decoder
+
+        if hasattr(self, "model"):
+            inner = self.model
+            if hasattr(inner, "get_decoder"):
+                return inner.get_decoder()
+            return inner
+
         return None
+
+    def set_decoder(self, decoder):
+        if hasattr(self, "decoder"):
+            self.decoder = decoder
+
+        if hasattr(self, "model"):
+            inner = self.model
+            if hasattr(inner, "set_decoder"):
+                inner.set_decoder(decoder)
+            else:
+                self.model = decoder
 
     def tie_weights(self):
         """
@@ -1495,7 +1550,7 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
                             dtype=output_embeddings._dtype,
                             is_bias=True,
                         )
-                        new_bias = paddle.concat(
+                        new_bias = paddle.cat(
                             [old_bias, paddle.zeros([pad_length], dtype=output_embeddings.bias.dtype)]
                         )
                         output_embeddings.bias.set_value(new_bias)
@@ -1532,7 +1587,7 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
         """
         return cls.config_class is not None and issubclass(cls.config_class, PretrainedConfig)
 
-    def save_model_config(self, save_dir: str):
+    def save_model_config(self, save_dir: str, **kwargs):
         """
         Deprecated, please use `.config.save_pretrained()` instead.
         Saves model configuration to a file named "config.json" under `save_dir`.
@@ -1541,7 +1596,7 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
             save_dir (str): Directory to save model_config file into.
         """
         logger.warning("The `save_model_config` is deprecated! Please use `.config.save_pretrained()` instead.")
-        self.config.save_pretrained(save_dir)
+        self.config.save_pretrained(save_dir, **kwargs)
 
     def save_to_hf_hub(
         self,
@@ -2364,7 +2419,6 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
                         if pre_tensor_parallel_split:
                             if k[-1] in tp_actions:
                                 fuse_actions.pop(k[-1], None)
-
                     state_dict = load_state_dict(
                         shard_file,
                         tp_actions if pre_tensor_parallel_split else None,
@@ -2537,6 +2591,9 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
                 # Load from local directory path
                 model = BertForSequenceClassification.from_pretrained('./my_bert/')
         """
+        kwargs.pop("from_hf_hub", None)
+        kwargs.pop("from_aistudio", None)
+        kwargs.pop("convert_from_torch", None)
         config = kwargs.pop("config", None)
         state_dict = kwargs.pop("state_dict", None)
         cache_dir = kwargs.pop("cache_dir", None)

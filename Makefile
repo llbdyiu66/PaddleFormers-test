@@ -39,8 +39,8 @@ unit-test:
 	PYTHONPATH=$(shell pwd) pytest -v \
 		--retries 1 --retry-delay 1 \
 		--durations 20 \
-		--cov paddleformers \
-		--cov-report xml:coverage.xml
+		--cov=./paddleformers \
+		--cov-report=xml:coverage.xml
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -68,11 +68,3 @@ deploy-paddleformers:
 	python3 setup.py sdist bdist_wheel
 	# upload
 	twine upload --skip-existing dist/*
-
-.PHONY: regression-all
-release: 
-	bash ./scripts/regression/run_release.sh 0 0,1 all
-
-.PHONY: regression-key
-key: 
-	bash ./scripts/regression/run_release.sh 0 0,1 p0

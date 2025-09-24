@@ -32,7 +32,7 @@ install_requirements() {
     python -m pip install -r requirements-dev.txt
     python -m pip install -r tests/requirements.txt
     python -m pip uninstall paddlepaddle paddlepaddle_gpu -y
-    python -m pip install --no-cache-dir ${paddle}
+    python -m pip install --no-cache-dir ${paddle} --no-dependencies
     python -c "import paddle;print('paddle');print(paddle.__version__);print(paddle.version.show())" >> ${log_path}/commit_info.txt
 
     python setup.py bdist_wheel > /dev/null
@@ -47,14 +47,12 @@ set_env() {
     export FLAGS_cudnn_deterministic=1
     export HF_ENDPOINT=https://hf-mirror.com
     export FLAGS_use_cuda_managed_memory=true
-    export running_time=80m
 
     # for CE
     if [[ ${FLAGS_enable_CE} == "true" ]];then
         export CE_TEST_ENV=1
         export RUN_SLOW_TEST=1
         export PYTHONPATH=${nlp_dir}:${nlp_dir}/llm:${PYTHONPATH}
-        export running_time=5h
     fi
 }
 
@@ -82,14 +80,14 @@ print_info() {
 get_diff_TO_case(){
 export FLAGS_enable_CI=false
 if [ -z "${AGILE_COMPILE_BRANCH}" ]; then
-    # 定时任务回归测试
+    # Scheduled Regression Test
     FLAGS_enable_CI=true
 else
     for file_name in `git diff --numstat ${AGILE_COMPILE_BRANCH} -- |awk '{print $NF}'`;do
         ext="${file_name##*.}"
         echo "file_name: ${file_name}, ext: ${file_name##*.}"
         
-        if [ ! -f ${file_name} ];then # 针对pr删掉文件
+        if [ ! -f ${file_name} ];then # Delete Files for a Pull Request
             continue
         elif [[ "$ext" == "md" || "$ext" == "rst" || "$file_name" == docs/* ]]; then
             continue
@@ -108,13 +106,16 @@ if [[ ${FLAGS_enable_CI} == "true" ]] || [[ ${FLAGS_enable_CE} == "true" ]];then
     echo ' Testing all unittest cases '
     unset http_proxy && unset https_proxy
     set +e
-    DOWNLOAD_SOURCE=aistudio PYTHONPATH=$(pwd) \
-    timeout ${running_time} \
-    python -m pytest -v \
-    --dist loadgroup \
-    --retries 3 --retry-delay 1 \
-    --timeout 200 --durations 20 --alluredir=result \
-    --cov paddleformers --cov-report xml:coverage.xml > ${log_path}/unittest.log 2>&1
+    DOWNLOAD_SOURCE=aistudio WAIT_UNTIL_DONE=True \
+    PYTHONPATH=$(pwd) \
+    COVERAGE_SOURCE=paddleformers \
+    python -m pytest -v -n 8 \
+        --dist loadgroup \
+        --retries 3 --retry-delay 1 \
+        --timeout 200 --durations 20 \
+        --alluredir=result \
+        --cov=paddleformers \
+        --cov-report=xml:coverage.xml > ${log_path}/unittest.log 2>&1
     exit_code=$?
     print_info $exit_code unittest
 
@@ -122,7 +123,7 @@ if [[ ${FLAGS_enable_CI} == "true" ]] || [[ ${FLAGS_enable_CE} == "true" ]];then
         cd ${nlp_dir}
         echo -e "\033[35m ---- Generate Allure Report  \033[0m"
         unset http_proxy && unset https_proxy
-        cp scripts/regression/gen_allure_report.py ./
+        cp scripts/unit_test/gen_allure_report.py ./
         python gen_allure_report.py > /dev/null
         echo -e "\033[35m ---- Report: https://xly.bce.baidu.com/ipipe/ipipe-report/report/${AGILE_JOB_BUILD_ID}/report/  \033[0m"
     else

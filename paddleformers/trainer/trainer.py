@@ -302,6 +302,7 @@ class Trainer:
         optimizers: Tuple[paddle.optimizer.Optimizer, paddle.optimizer.lr.LRScheduler] = (None, None),
         preprocess_logits_for_metrics: Callable[[paddle.Tensor, paddle.Tensor], paddle.Tensor] = None,
         processing_class: Optional[ImageProcessingMixin] = None,
+        resume_from_custom_func: Optional[Callable] = None,
     ):
 
         if args is None:
@@ -356,6 +357,7 @@ class Trainer:
         self.train_dataset = train_dataset
         self.eval_dataset = eval_dataset
         self.tokenizer = tokenizer
+        self.resume_from_custom_func = resume_from_custom_func
         if not args.skip_profile_timer:
             set_timers()
         self.timers = get_timers()
@@ -1133,6 +1135,9 @@ class Trainer:
         if self.args.ignore_data_skip:
             self.timers and self.timers("read-data").start()
 
+        if self.resume_from_custom_func is not None:
+            self.resume_from_custom_func(self.model)
+
         for epoch in range(epochs_trained, num_train_epochs):
             if isinstance(train_dataloader, paddle.io.DataLoader) and isinstance(
                 train_dataloader.batch_sampler, DistributedBatchSampler
@@ -1721,11 +1726,11 @@ class Trainer:
                 if self.hcg._sharding_degree > 1:
                     output_tensors = []
                     paddle.distributed.all_gather(output_tensors, tensors, group=self.hcg._sharding_comm_group)
-                    tensors = paddle.concat(output_tensors).sum().reshape([1])
+                    tensors = paddle.cat(output_tensors).sum().reshape([1])
                 if self.hcg._dp_degree > 1:
                     output_tensors = []
                     paddle.distributed.all_gather(output_tensors, tensors, group=self.hcg._dp_comm_group)
-                    tensors = paddle.concat(output_tensors).sum().reshape([1])
+                    tensors = paddle.cat(output_tensors).sum().reshape([1])
                 token_list.append(tensors.item())
             if self.is_local_process_zero():
 
@@ -3429,7 +3434,7 @@ class Trainer:
             if loss is not None:
                 # losses = self._nested_gather(loss.repeat(batch_size))
                 losses = self._nested_gather(paddle.tile(loss, repeat_times=[batch_size, 1]))
-                losses_host = losses if losses_host is None else paddle.concat((losses_host, losses), axis=0)
+                losses_host = losses if losses_host is None else paddle.cat((losses_host, losses), axis=0)
             if labels is not None:
                 labels = self._pad_across_processes(labels)
                 labels = self._nested_gather(labels)
