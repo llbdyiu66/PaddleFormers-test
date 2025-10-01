@@ -231,6 +231,9 @@ class Glm4MoeAttention(nn.Layer):
         else:
             mix_layer = self.qkv_proj(hidden_states)
             if self.sequence_parallel:
+                max_sequence_length = self.config.max_sequence_length
+                bsz = hidden_states.shape[0] * self.config.tensor_parallel_degree // max_sequence_length
+                q_len = max_sequence_length
                 target_shape = [
                     bsz,
                     q_len,
@@ -311,13 +314,10 @@ class Glm4MoeTopkFlexRouter(PretrainedMoEGate):
         Args:
             hidden_states (_type_): [batch_size * seq_len, hidden_size]
         """
-
         # compute gating score
         with paddle.amp.auto_cast(False):
             hidden_states = hidden_states.cast(self.weight.dtype)
-
             logits = F.linear(hidden_states.cast("float32"), self.weight.cast("float32").t())
-
             scores = self.gate_score_func(logits=logits)
             scores = scores.cast(paddle.float32)
 
