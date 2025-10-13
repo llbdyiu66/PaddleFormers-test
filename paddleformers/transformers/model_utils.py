@@ -454,7 +454,7 @@ def _load_part_state_dict(
                             is_column = tp_fn.keywords["is_column"]
                         is_column = not is_column
                         tp_fn = partial(tp_fn.func, *tp_fn.args, **{**tp_fn.keywords, "is_column": is_column})
-                    if len(py_safe_slice_.shape) == 0:
+                    if len(py_safe_slice_.get_shape()) == 0:
                         weight = tp_fn(py_safe_slice_[:])
                     else:
                         weight = tp_fn(py_safe_slice_)
