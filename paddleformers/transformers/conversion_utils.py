@@ -332,7 +332,7 @@ def naive_fuse_merge_tp(weight_list, is_column=True, fuse_tensor_parts=2):
 
 
 def naive_fuse_split_tp(
-    weight, tensor_parallel_degree, tensor_parallel_rank=None, is_column=True, fuse_tensor_parts=2
+    weight, tensor_parallel_degree, tensor_parallel_rank=None, is_column=True, fuse_tensor_parts=2, num_groups=1
 ):
     """
 
@@ -351,13 +351,17 @@ def naive_fuse_split_tp(
     axis = -1 if is_column else 0
     if "PySafeSlice" in str(type(weight)):
         size = weight.get_shape()[axis]
-        block_size = size // (fuse_tensor_parts * tensor_parallel_degree)
+        block_size = size // (fuse_tensor_parts * tensor_parallel_degree * num_groups)
 
         splited = []
         if tensor_parallel_rank is None:
-            begin, end, step = 0, fuse_tensor_parts * tensor_parallel_degree, 1
+            begin, end, step = 0, fuse_tensor_parts * tensor_parallel_degree * num_groups, 1
         else:
-            begin, end, step = tensor_parallel_rank, fuse_tensor_parts * tensor_parallel_degree, tensor_parallel_degree
+            begin, end, step = (
+                tensor_parallel_rank,
+                fuse_tensor_parts * tensor_parallel_degree * num_groups,
+                tensor_parallel_degree,
+            )
         for rank in range(begin, end, step):
             start = rank * block_size
             stop = (rank + 1) * block_size
@@ -377,8 +381,10 @@ def naive_fuse_split_tp(
 
     if isinstance(weight, paddle.Tensor):
 
-        def slice_concat_by_axis(weight, fuse_tensor_parts, tensor_parallel_degree, tensor_parallel_rank, axis=0):
-            total_splits = fuse_tensor_parts * tensor_parallel_degree
+        def slice_concat_by_axis(
+            weight, fuse_tensor_parts, tensor_parallel_degree, tensor_parallel_rank, num_groups=1, axis=0
+        ):
+            total_splits = fuse_tensor_parts * tensor_parallel_degree * num_groups
             dim_size = weight.shape[axis]
             split_size = dim_size // total_splits
 
@@ -395,16 +401,21 @@ def naive_fuse_split_tp(
 
         if tensor_parallel_rank is not None:
             return slice_concat_by_axis(
-                weight, fuse_tensor_parts, tensor_parallel_degree, tensor_parallel_rank, axis=axis
+                weight,
+                fuse_tensor_parts,
+                tensor_parallel_degree,
+                tensor_parallel_rank,
+                num_groups=num_groups,
+                axis=axis,
             )
         else:
-            splited = paddle.split(weight, fuse_tensor_parts * tensor_parallel_degree, axis=axis)
+            splited = paddle.split(weight, fuse_tensor_parts * tensor_parallel_degree * num_groups, axis=axis)
             ret = []
             for tensor_parallel_rank in range(tensor_parallel_degree):
                 ret.append(paddle.cat(splited[tensor_parallel_rank::tensor_parallel_degree], axis=axis))
             return ret
     else:
-        splited = np.split(weight, fuse_tensor_parts * tensor_parallel_degree, axis=axis)
+        splited = np.split(weight, fuse_tensor_parts * tensor_parallel_degree * num_groups, axis=axis)
 
         if tensor_parallel_rank is None:
             ret = []
@@ -740,7 +751,9 @@ def get_tensor_parallel_merge_func(tensor_parallel_degree, tensor_parallel_rank,
 
 
 def get_tensor_parallel_split_func(tensor_parallel_degree, tensor_parallel_rank, num_attention_heads=None):
-    def fn(x, is_column=True, transpose=False, is_old_qkv=False, is_naive_2fuse=False, is_naive_3fuse=False):
+    def fn(
+        x, is_column=True, transpose=False, is_old_qkv=False, is_naive_2fuse=False, is_naive_3fuse=False, num_groups=1
+    ):
         if x is None:
             return None
         if transpose:
@@ -758,7 +771,12 @@ def get_tensor_parallel_split_func(tensor_parallel_degree, tensor_parallel_rank,
             )
         if is_naive_3fuse:
             return naive_fuse_split_tp(
-                x, tensor_parallel_degree, tensor_parallel_rank, is_column=is_column, fuse_tensor_parts=3
+                x,
+                tensor_parallel_degree,
+                tensor_parallel_rank,
+                is_column=is_column,
+                fuse_tensor_parts=3,
+                num_groups=num_groups,
             )
 
         return normal_fuse_split_tp(x, tensor_parallel_degree, tensor_parallel_rank, is_column=is_column)
