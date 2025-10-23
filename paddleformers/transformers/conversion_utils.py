@@ -290,7 +290,7 @@ class StateDictKeysChecker:
         return all_diff_keys
 
 
-def naive_fuse_merge_tp(weight_list, is_column=True, fuse_tensor_parts=2):
+def naive_fuse_merge_tp(weight_list, is_column=True, fuse_tensor_parts=2, num_kv_groups=1):
     """
 
     [A1 B1],[A2 B2]  => [A1, A2, B1, B2]
@@ -308,12 +308,22 @@ def naive_fuse_merge_tp(weight_list, is_column=True, fuse_tensor_parts=2):
         axis = 0
 
     reorder = []
-    if isinstance(weight_list[0], np.ndarray):
-        for item in weight_list:
-            reorder.extend(np.split(item, fuse_tensor_parts, axis=axis))
-    else:
-        for item in weight_list:
-            reorder.extend(paddle.split(item, fuse_tensor_parts, axis=axis))
+    for weight in weight_list:
+        if fuse_tensor_parts == 3 and num_kv_groups > 1:
+            # for qkv(gqa)
+            size = weight.shape[axis]
+            q_size = num_kv_groups * size // (num_kv_groups + 2)
+            k_size = (size - q_size) // 2
+            if axis == 0 or len(weight.shape) == 1:
+                reorder.extend([weight[:q_size], weight[q_size : q_size + k_size], weight[q_size + k_size :]])
+            else:
+                reorder.extend([weight[:, :q_size], weight[:, q_size : q_size + k_size], weight[:, q_size + k_size :]])
+        else:
+            if isinstance(weight, np.ndarray):
+                reorder.extend(np.split(weight, fuse_tensor_parts, axis=axis))
+            else:
+                reorder.extend(paddle.split(weight, fuse_tensor_parts, axis=axis))
+
     # 0 1 2 3 -> 0 2 1 3
     index = (
         np.transpose(np.arange(len(reorder)).reshape([len(weight_list), fuse_tensor_parts]), [1, 0])
@@ -724,6 +734,7 @@ def get_tensor_parallel_merge_func(tensor_parallel_degree, tensor_parallel_rank,
         is_old_qkv=False,
         is_naive_2fuse=False,
         is_naive_3fuse=False,
+        num_kv_groups=1,
     ):
         if x is None:
             return None
@@ -731,7 +742,7 @@ def get_tensor_parallel_merge_func(tensor_parallel_degree, tensor_parallel_rank,
         if is_naive_2fuse:
             return naive_fuse_merge_tp(x, is_column=is_column, fuse_tensor_parts=2)
         elif is_naive_3fuse:
-            return naive_fuse_merge_tp(x, is_column=is_column, fuse_tensor_parts=3)
+            return naive_fuse_merge_tp(x, is_column=is_column, fuse_tensor_parts=3, num_kv_groups=num_kv_groups)
         else:
             x = normal_fuse_merge_tp(x, is_column=is_column)
 
