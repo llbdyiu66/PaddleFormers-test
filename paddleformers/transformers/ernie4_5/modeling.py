@@ -749,7 +749,7 @@ class Ernie4_5ForCausalLM(Ernie4_5PretrainedModel):
         past_key_values=None,
         output_attentions=None,
         output_hidden_states=None,
-        return_dict=False,  # true when decode, false when pretrain & eval
+        return_dict=None,
         **kwargs,
     ):
         """
@@ -794,52 +794,31 @@ class Ernie4_5ForCausalLM(Ernie4_5PretrainedModel):
             past_key_values=past_key_values,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
-            return_dict=True,
+            return_dict=return_dict,
         )
 
-        hidden_states = outputs.last_hidden_state
+        if return_dict:
+            hidden_states = outputs.last_hidden_state
+        else:
+            hidden_states = outputs[0]
 
-        if self.criterion.loss_type == "dpo":
-            logits = self.lm_head(hidden_states)
-            chosen_labels = kwargs.get("chosen_labels", None)
-            rejected_labels = kwargs.get("rejected_labels", None)
-            response_indexs = kwargs.get("response_indexs", None)
-            score_deltas = kwargs.get("score_deltas", None)
-            reference_chosen_logps = kwargs.get("reference_chosen_logps", None)
-            reference_rejected_logps = kwargs.get("reference_rejected_logps", None)
-            labels = (
-                chosen_labels,
-                rejected_labels,
-                response_indexs,
-                score_deltas,
-                reference_chosen_logps,
-                reference_rejected_logps,
-            )
-            return self.criterion(
-                logits,
-                labels,
-            )
-
-        # if labels is None，means we need full output, instead of tensor_parallel_output
-        # tensor_parallel_output is togather with ParallelCrossEntropy
         logits = self.lm_head(hidden_states)
 
-        if return_dict:  # aka Generate Decoding
-            if labels is not None:
-                loss, _ = self.criterion(logits, labels, loss_mask)
-            else:
-                loss = None
-            return CausalLMOutputWithCrossAttentions(
-                loss=loss,
-                logits=logits,
-                past_key_values=outputs.past_key_values,
-                hidden_states=outputs.hidden_states,
-                attentions=outputs.attentions,
-            )
+        loss = None
+        if labels is not None:
+            loss, _ = self.criterion(logits, labels, loss_mask)
 
-        # Pretrain & Eval must have labels
-        assert labels is not None
-        return self.criterion(logits, labels, loss_mask)
+        if not return_dict:
+            output = (logits,) + outputs[1:]
+            return (loss,) + output if loss is not None else output
+
+        return CausalLMOutputWithCrossAttentions(
+            loss=loss,
+            logits=logits,
+            past_key_values=outputs.past_key_values,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        )
 
 
 class Ernie4_5ForCausalLMPipe(GeneralModelForCausalLMPipe):
