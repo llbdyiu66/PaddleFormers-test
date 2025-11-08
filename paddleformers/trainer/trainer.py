@@ -3246,9 +3246,17 @@ class Trainer:
         if self.args.save_checkpoint_format == "flex_checkpoint":
             if last_fc_to_hf:
                 is_main_process = paddle.distributed.get_rank() == 0
-                self.model.save_pretrained(
-                    output_dir, is_main_process, save_checkpoint_format=self.args.save_checkpoint_format
-                )
+                if isinstance(self.model, LoRAModel):
+                    self.model.save_pretrained(
+                        output_dir,
+                        merge_tensor_parallel=merge_tensor_parallel,
+                        variant=self.args.weight_name_suffix,
+                        save_checkpoint_format=self.args.save_checkpoint_format,
+                    )
+                else:
+                    self.model.save_pretrained(
+                        output_dir, is_main_process, save_checkpoint_format=self.args.save_checkpoint_format
+                    )
             else:
                 self._save_flex_model_state(output_dir)
 
