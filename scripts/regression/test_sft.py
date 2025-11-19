@@ -267,7 +267,7 @@ class SFTTrainTest(unittest.TestCase):
             "max_steps": MAX_STEPS,
             "save_steps": SAVE_STEPS,
         }
-        config_path = os.path.join(CONFIG_PATH, "full_tp_pp.yaml")
+        config_path = os.path.join(CONFIG_PATH, "full_tp_pp_packing.yaml")
         updated_config_path = self.sfttrain_tester.update_training_args(config_path, output_dir, update_args)
         cmd = [
             "paddleformers-cli",
@@ -318,7 +318,7 @@ class SFTTrainTest(unittest.TestCase):
             "max_steps": MAX_STEPS,
             "save_steps": SAVE_STEPS,
         }
-        config_path = os.path.join(CONFIG_PATH, "lora_tp_pp.yaml")
+        config_path = os.path.join(CONFIG_PATH, "lora_tp_pp_packing.yaml")
         updated_config_path = self.sfttrain_tester.update_training_args(config_path, output_dir, update_args)
         # cli mode
         cmd = [

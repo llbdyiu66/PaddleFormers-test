@@ -7,11 +7,11 @@ eval_dataset_path: ./data/dpo/dev.jsonl
 eval_dataset_prob: "1.0"
 max_seq_len: 8192
 num_samples_each_epoch: 6000000
-packing: true
+packing: false
 mix_strategy: concat
 
 ### model
-model_name_or_path: Qwen/Qwen3-0.6B-Base
+model_name_or_path: Qwen/Qwen3-30B-A3B
 attn_impl: flashmask
 
 ### finetuning
@@ -44,8 +44,10 @@ learning_rate: 1.0e-6
 tensor_parallel_degree: 2
 pipeline_parallel_degree: 2
 pipeline_parallel_config: enable_clear_every_step_cache disable_partial_send_recv
-sequence_parallel: true
+expert_parallel_degree: 4
+sharding_parallel_degree: 2
 sharding: stage1
+sequence_parallel: false
 recompute: true
 bf16: true
 fp16_opt_level: O2
