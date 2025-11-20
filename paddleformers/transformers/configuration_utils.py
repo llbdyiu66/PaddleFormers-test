@@ -238,6 +238,8 @@ class LlmMetaConfig:
         ("fuse_linear", bool, False, "Use fused linear layer instead of normal linear layer."),
         ("fuse_rope", bool, False, "Whether to fuse RoPE operation"),
         ("fuse_swiglu", bool, False, "Whether to fuse SwiGLU operations"),
+        ("fuse_attention_qkv", bool, False, "Whether to fuse Attention QKV operations"),
+        ("fuse_attention_ffn", bool, False, "Whether to fuse Attention FFN operations"),
     ]
 
     hybrid_parallel_attributes = [
