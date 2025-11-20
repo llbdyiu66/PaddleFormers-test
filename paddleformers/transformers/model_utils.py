@@ -2903,6 +2903,9 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
         if convert_from_hf is None:
             convert_from_hf = False
 
+        if convert_from_hf:
+            load_checkpoint_format = "flex_checkpoint"
+
         # 1. get the PretrainedConfig to init model
         if not isinstance(config, PretrainedConfig):
             config_path = config if config is not None else pretrained_model_name_or_path
@@ -3182,6 +3185,9 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
         if os.path.isfile(save_directory):
             logger.error(f"Provided path ({save_directory}) should be a directory, not a file")
             return
+
+        if save_to_hf:
+            save_checkpoint_format = "flex_checkpoint"
 
         os.makedirs(save_directory, exist_ok=True)
         # Save model config

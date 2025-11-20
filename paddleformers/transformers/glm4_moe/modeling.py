@@ -776,6 +776,10 @@ class Glm4MoePreTrainedModel(PretrainedModel):
     base_model_prefix = "model"
     _keep_in_fp32_modules = ["mlp.gate.weight", "e_score_correction_bias"]
     transpose_weight_keys = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+    fused_keys_mapping = {
+        "qkv_proj": ["q_proj", "k_proj", "v_proj"],
+        "up_gate_proj": ["gate_proj", "up_proj"],
+    }
 
     @classmethod
     def _get_tensor_parallel_mappings(cls, config: Glm4MoeConfig, is_split=True):

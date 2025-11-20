@@ -1264,7 +1264,75 @@ class LogitComparer:
 
 class ConversionMixin:
 
+    _keep_in_fp32_modules = None
     transpose_weight_keys = None
+    fused_keys_mapping = None
+
+    @classmethod
+    def _gen_aoa_config(cls, config, state_dict_keys):
+        aoa_statements = []
+
+        if isinstance(cls._keep_in_fp32_modules, list):
+            for module_name in cls._keep_in_fp32_modules:
+                for std_key in state_dict_keys:
+                    if re.search(f"{module_name}", std_key):
+                        aoa_statements.append(f"{std_key} -> {std_key}, dtype='float32'")
+
+        if isinstance(cls.transpose_weight_keys, list):
+            for trans_key in cls.transpose_weight_keys:
+                for std_key in state_dict_keys:
+                    if re.search(f"\.{trans_key}\.weight$", std_key) or re.fullmatch(
+                        f"^{trans_key}\.weight$", std_key
+                    ):
+                        aoa_statements.append(f"{std_key}^T -> {std_key}")
+
+        if isinstance(cls.fused_keys_mapping, dict):
+            from collections import defaultdict
+
+            qkv_fkeys_dict = defaultdict(list)
+            ffn_fkeys_dict = defaultdict(list)
+            for fused_key in cls.fused_keys_mapping:
+                if isinstance(cls.fused_keys_mapping[fused_key], list):
+                    for std_key in state_dict_keys:
+                        if "qkv" in fused_key and len(cls.fused_keys_mapping[fused_key]) == 3:
+                            for spt_key in cls.fused_keys_mapping[fused_key]:
+                                if f".{spt_key}." in std_key:
+                                    prefix_str, suffix_str = std_key.split(f".{spt_key}.")
+                                    qkv_fkeys_dict[f"{prefix_str}.{fused_key}.{suffix_str}"].append(std_key)
+
+                        elif "gate" in fused_key and "up" in fused_key and len(cls.fused_keys_mapping[fused_key]) == 2:
+                            for spt_key in cls.fused_keys_mapping[fused_key]:
+                                if f".{spt_key}." in std_key:
+                                    prefix_str, suffix_str = std_key.split(f".{spt_key}.")
+                                    ffn_fkeys_dict[f"{prefix_str}.{fused_key}.{suffix_str}"].append(std_key)
+            # convert aoa
+            for tgt_key in qkv_fkeys_dict:
+                assert len(qkv_fkeys_dict[tgt_key]) == 3
+                if tgt_key.endswith("weight"):
+                    aoa_statements.append(
+                        f"{', '.join(qkv_fkeys_dict[tgt_key])} -> {tgt_key}, fused_qkv, num_heads={config.num_attention_heads}, num_key_value_groups={config.num_key_value_heads}"
+                    )
+                elif tgt_key.endswith("bias"):
+                    aoa_statements.append(
+                        f"{', '.join(qkv_fkeys_dict[tgt_key])} -> {tgt_key}, fused_qkv, num_heads={config.num_attention_heads}, num_key_value_groups={config.num_key_value_heads}, axis=0"
+                    )
+
+            for tgt_key in ffn_fkeys_dict:
+                assert len(ffn_fkeys_dict[tgt_key]) == 2
+                if tgt_key.endswith("weight"):
+                    aoa_statements.append(f"{', '.join(ffn_fkeys_dict[tgt_key])} -> {tgt_key}, fused_ffn")
+                elif tgt_key.endswith("bias"):
+                    aoa_statements.append(f"{', '.join(ffn_fkeys_dict[tgt_key])} -> {tgt_key}, fused_ffn, axis=0")
+
+        aoa_config = {"aoa_statements": aoa_statements}
+        return aoa_config
+
+    @classmethod
+    def _gen_inv_aoa_config(cls, config, loaded_state_dict_keys):
+        aoa_statements = []
+
+        aoa_config = {"aoa_statements": aoa_statements}
+        return aoa_config
 
     @staticmethod
     def convert_transpose_selected_weights(state_dict: dict, transpose_weight_keys: list):
