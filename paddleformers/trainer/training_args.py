@@ -1218,15 +1218,6 @@ class TrainingArguments:
         metadata={"help": "whether to use auto_parallel intermediate API."},
     )
 
-    fuse_attention_qkv: bool = field(
-        default=False,
-        metadata={"help": "Whether to fuse Attention QKV operations."},
-    )
-    fuse_attention_ffn: bool = field(
-        default=False,
-        metadata={"help": "Whether to fuse Attention FFN operations."},
-    )
-
     def __post_init__(self):
         world_size = paddle.distributed.get_world_size()
         if in_auto_parallel_align_mode():
