@@ -208,6 +208,8 @@ class Qwen3MoeAttention(nn.Layer):
                 num_or_sections=[self.num_key_value_groups * self.head_dim, self.head_dim, self.head_dim],
                 axis=-1,
             )
+            query_states = self.q_norm(query_states)
+            key_states = self.k_norm(key_states)
 
         cos, sin = position_embeddings
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
