@@ -243,8 +243,8 @@ class Qwen3MoeAttention(nn.Layer):
 
 
 class Qwen3MoeMLP(MLP):
-    def __init__(self, config: Qwen3MoeConfig, intermediate_size=None):
-        super().__init__(config, intermediate_size=intermediate_size)
+    def __init__(self, config: Qwen3MoeConfig, intermediate_size=None, **kwargs):
+        super().__init__(config, intermediate_size=intermediate_size, **kwargs)
 
 
 class Qwen3MoeGate(PretrainedMoEGate):
