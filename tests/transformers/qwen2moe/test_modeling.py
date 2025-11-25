@@ -412,17 +412,17 @@ class Qwen2MoeCompatibilityTest(unittest.TestCase):
 
             # 2. forward the torch  model
             import torch
-            from transformers import Qwen2MoeModel
+            from transformers import Qwen2MoeForCausalLM
 
-            torch_model = Qwen2MoeModel.from_pretrained(self.torch_model_path, torch_dtype=torch.float32)
+            torch_model = Qwen2MoeForCausalLM.from_pretrained(self.torch_model_path, torch_dtype=torch.float32)
             torch_model.eval()
             torch_model.save_pretrained(tempdir)
             torch_logit = torch_model(torch.tensor(input_ids), return_dict=False)[0]
 
             # 2. forward the paddle model with fc
-            from paddleformers.transformers import Qwen2MoeConfig, Qwen2MoeModel
+            from paddleformers.transformers import Qwen2MoeConfig, Qwen2MoeForCausalLM
 
-            paddle_model = Qwen2MoeModel.from_pretrained(
+            paddle_model = Qwen2MoeForCausalLM.from_pretrained(
                 tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format="flex_checkpoint"
             )
             paddle_model.eval()
@@ -441,7 +441,7 @@ class Qwen2MoeCompatibilityTest(unittest.TestCase):
             model_config = Qwen2MoeConfig.from_pretrained(tempdir)
             model_config.fuse_attention_qkv = True
             model_config.fuse_attention_ffn = True
-            paddle_model_fused = Qwen2MoeModel.from_pretrained(
+            paddle_model_fused = Qwen2MoeForCausalLM.from_pretrained(
                 tempdir,
                 config=model_config,
                 convert_from_hf=True,
