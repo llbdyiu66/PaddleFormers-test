@@ -670,6 +670,10 @@ class Qwen3MoePretrainedModel(PretrainedModel):
                 f"model.layers.$LAYER_ID.mlp.experts.$EXPERT_ID.gate_proj.weight^T, model.layers.$LAYER_ID.mlp.experts.$EXPERT_ID.up_proj.weight^T -> {model_prefix}layers.$LAYER_ID.mlp.experts.$EXPERT_ID.up_gate_proj.weight, fused_ffn",
             ]
 
+        # lm_head
+        if config.tie_word_embeddings:
+            aoa_config["aoa_statements"] += ["model.embed_tokens.weight^T -> lm_head.weight"]
+
         return aoa_config
 
     @classmethod
@@ -715,6 +719,10 @@ class Qwen3MoePretrainedModel(PretrainedModel):
                 "model.layers.$LAYER_ID.mlp.experts.$EXPERT_ID.gate_proj.weight^T -> model.layers.$LAYER_ID.mlp.experts.$EXPERT_ID.gate_proj.weight",
                 "model.layers.$LAYER_ID.mlp.experts.$EXPERT_ID.up_proj.weight^T -> model.layers.$LAYER_ID.mlp.experts.$EXPERT_ID.up_proj.weight",
             ]
+
+        if config.tie_word_embeddings:
+            aoa_statements += ["lm_head.weight -> _"]
+
         aoa_config = {"aoa_statements": aoa_statements}
         return aoa_config
 
