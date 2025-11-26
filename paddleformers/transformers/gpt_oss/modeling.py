@@ -34,6 +34,7 @@ from ..cache_utils import Cache, DynamicCache
 from ..masking_utils import create_causal_masks_and_row_indices
 from ..model_outputs import MoECausalLMOutputWithPast, MoEModelOutputWithPast
 from ..model_utils import PretrainedModel, register_base_model
+from ..modeling_rope_utils import dynamic_rope_update
 from .configuration import GptOssConfig
 
 
@@ -238,14 +239,14 @@ def _compute_yarn_parameters(config, device: paddle.device, seq_len: Optional[in
     partial_rotary_factor = config.partial_rotary_factor if hasattr(config, "partial_rotary_factor") else 1.0
     head_dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
     dim = int(head_dim * partial_rotary_factor)
-    factor = config.rope_scaling["factor"]
-    attention_factor = config.rope_scaling.get("attention_factor")
-    mscale = config.rope_scaling.get("mscale")
-    mscale_all_dim = config.rope_scaling.get("mscale_all_dim")
+    factor = config.rope_parameters["factor"]
+    attention_factor = config.rope_parameters.get("attention_factor")
+    mscale = config.rope_parameters.get("mscale")
+    mscale_all_dim = config.rope_parameters.get("mscale_all_dim")
 
     # Handling the situation of embedding the original maximum position
-    if "original_max_position_embeddings" in config.rope_scaling:
-        original_max_position_embeddings = config.rope_scaling["original_max_position_embeddings"]
+    if "original_max_position_embeddings" in config.rope_parameters:
+        original_max_position_embeddings = config.rope_parameters["original_max_position_embeddings"]
         factor = config.max_position_embeddings / original_max_position_embeddings
     else:
         original_max_position_embeddings = config.max_position_embeddings
@@ -263,8 +264,8 @@ def _compute_yarn_parameters(config, device: paddle.device, seq_len: Optional[in
             attention_factor = get_mscale(factor)
 
     # Optional configuration parameters
-    beta_fast = config.rope_scaling.get("beta_fast") or 32
-    beta_slow = config.rope_scaling.get("beta_slow") or 1
+    beta_fast = config.rope_parameters.get("beta_fast") or 32
+    beta_slow = config.rope_parameters.get("beta_slow") or 1
 
     # Auxiliary function for calculating inverse frequency
     def find_correction_dim(num_rotations, dim, base, max_position_embeddings):
@@ -295,7 +296,7 @@ def _compute_yarn_parameters(config, device: paddle.device, seq_len: Optional[in
     inv_freq_extrapolation = 1.0 / pos_freqs
     inv_freq_interpolation = 1.0 / (factor * pos_freqs)
 
-    truncate = config.rope_scaling.get("truncate", True)
+    truncate = config.rope_parameters.get("truncate", True)
     low, high = find_correction_range(beta_fast, beta_slow, dim, base, original_max_position_embeddings, truncate)
 
     # Obtain n-dimensional rotation scaling correction for extrapolation
@@ -311,8 +312,8 @@ class GptOssRotaryEmbedding(nn.Layer):
     def __init__(self, config: GptOssConfig, device=None):
         super().__init__()
         # BC: "rope_type" was originally "type"
-        if hasattr(config, "rope_scaling") and isinstance(config.rope_scaling, dict):
-            self.rope_type = config.rope_scaling.get("rope_type", config.rope_scaling.get("type"))
+        if hasattr(config, "rope_parameters") and isinstance(config.rope_parameters, dict):
+            self.rope_type = config.rope_parameters.get("rope_type", config.rope_parameters.get("type"))
         else:
             self.rope_type = "default"
         self.max_seq_len_cached = config.max_position_embeddings
@@ -332,6 +333,7 @@ class GptOssRotaryEmbedding(nn.Layer):
         self.original_inv_freq = self.inv_freq
 
     @paddle.no_grad()
+    @dynamic_rope_update
     def forward(self, x, position_ids):
         inv_freq_expanded = (
             self.inv_freq.unsqueeze(0)
