@@ -547,6 +547,7 @@ class Qwen3MoePretrainedModel(PretrainedModel):
 
     @classmethod
     def _get_tensor_parallel_mappings(cls, config: Qwen3MoeConfig, is_split=True):
+        """Generate tensor parallel mappings for model conversion."""
         from ..conversion_utils import split_or_merge_func
 
         fn = split_or_merge_func(
@@ -556,72 +557,124 @@ class Qwen3MoePretrainedModel(PretrainedModel):
             num_attention_heads=config.num_attention_heads,
         )
 
-        def get_tensor_parallel_split_mappings(num_layers, num_experts):
-            final_actions = {}
+        LAYER_COLWISE = [
+            "self_attn.q_proj.weight",
+            "self_attn.k_proj.weight",
+            "self_attn.v_proj.weight",
+        ]
+        FUSE_LAYER_COLWISE = [
+            "self_attn.qkv_proj.weight",
+        ]
 
-            base_actions = {
-                "lm_head.weight": partial(fn, is_column=True),
-                # Row Linear
-                "embed_tokens.weight": partial(fn, is_column=False),
-                "layers.0.self_attn.o_proj.weight": partial(fn, is_column=False),
+        LAYER_ROWWISE = ["self_attn.o_proj.weight"]
+
+        EXPERT_LAYER_COLWISE = [
+            "up_proj.weight",
+            "gate_proj.weight",
+        ]
+        FUSE_EXPERT_LAYER_COLWISE = [
+            "up_gate_proj.weight",
+        ]
+
+        EXPERT_LAYER_ROWWISE = ["down_proj.weight"]
+
+        BIAS_KEYS = [
+            "self_attn.q_proj.bias",
+            "self_attn.k_proj.bias",
+            "self_attn.v_proj.bias",
+        ]
+        FUSE_BIAS_KEYS = [
+            "self_attn.qkv_proj.bias",
+        ]
+
+        def make_base_actions():
+            actions = {
+                "lm_head.weight": partial(fn, is_column=False),
+                f"{cls.base_model_prefix}.embed_tokens.weight": partial(fn, is_column=False),
             }
+            for layer_idx in range(config.num_hidden_layers):
+                if not config.fuse_attention_qkv:
+                    actions.update(
+                        {
+                            f"{cls.base_model_prefix}.layers.{layer_idx}.{k}": partial(fn, is_column=True)
+                            for k in LAYER_COLWISE
+                        }
+                    )
+                else:
+                    actions.update(
+                        {
+                            f"{cls.base_model_prefix}.layers.{layer_idx}.{k}": partial(fn, is_column=True)
+                            for k in FUSE_LAYER_COLWISE
+                        }
+                    )
 
-            if not config.vocab_size % config.tensor_parallel_degree == 0:
-                base_actions.pop("lm_head.weight")
-                base_actions.pop("embed_tokens.weight")
+                actions.update(
+                    {
+                        f"{cls.base_model_prefix}.layers.{layer_idx}.{k}": partial(fn, is_column=False)
+                        for k in LAYER_ROWWISE
+                    }
+                )
 
-            # Column Linear
-            if config.fuse_attention_qkv:
-                base_actions["layers.0.self_attn.qkv_proj.weight"] = partial(fn, is_column=True)
-                base_actions["layers.0.self_attn.qkv_proj.bias"] = partial(fn, is_column=True)
-            else:
-                base_actions["layers.0.self_attn.q_proj.weight"] = partial(fn, is_column=True)
-                base_actions["layers.0.self_attn.q_proj.bias"] = partial(fn, is_column=True)
-                # if we have enough num_key_value_heads to split, then split it.
-                if config.num_key_value_heads % config.tensor_parallel_degree == 0:
-                    base_actions["layers.0.self_attn.k_proj.weight"] = partial(fn, is_column=True)
-                    base_actions["layers.0.self_attn.v_proj.weight"] = partial(fn, is_column=True)
-                    base_actions["layers.0.self_attn.k_proj.bias"] = partial(fn, is_column=True)
-                    base_actions["layers.0.self_attn.v_proj.bias"] = partial(fn, is_column=True)
+                try:
+                    moe_group = fleet.get_hybrid_communicate_group().get_expert_parallel_group()
+                except Exception:
+                    moe_group = None
+                expert_parallel_degree = dist.get_world_size(moe_group) if moe_group is not None else 1
+                # TODO: merge disable_ffn_model_parallel and expert_parallel_degree
+                if expert_parallel_degree <= 1:
+                    # # if disable_ffn_model_parallel is True, disable expert layer tp plan
+                    # if not config.disable_ffn_model_parallel:
+                    if not config.fuse_attention_ffn:
+                        actions.update(
+                            {
+                                f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.experts.{e}.{k}": partial(
+                                    fn, is_column=True
+                                )
+                                for e in range(config.num_experts)
+                                for k in EXPERT_LAYER_COLWISE
+                            }
+                        )
+                    else:
+                        actions.update(
+                            {
+                                f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.experts.{e}.{k}": partial(
+                                    fn, is_column=True
+                                )
+                                for e in range(config.num_experts)
+                                for k in FUSE_EXPERT_LAYER_COLWISE
+                            }
+                        )
 
-            for key, action in base_actions.items():
-                if "layers.0." in key:
-                    for i in range(num_layers):
-                        final_actions[key.replace("layers.0.", f"layers.{i}.")] = action
-                final_actions[key] = action
+                    actions.update(
+                        {
+                            f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.experts.{e}.{k}": partial(
+                                fn, is_column=False
+                            )
+                            for e in range(config.num_experts)
+                            for k in EXPERT_LAYER_ROWWISE
+                        }
+                    )
 
-            # Add tp split for expert params.
-            if config.fuse_attention_ffn:
-                base_actions = {
-                    "layers.0.mlp.experts.0.up_gate_proj.weight": partial(fn, is_column=True, is_naive_2fuse=True),
-                    "layers.0.mlp.experts.0.down_proj.weight": partial(fn, is_column=False),
-                }
-            else:
-                # Add tp split for expert params.
-                base_actions = {
-                    "layers.0.mlp.experts.0.gate_proj.weight": partial(fn, is_column=True),
-                    "layers.0.mlp.experts.0.up_proj.weight": partial(fn, is_column=True),
-                    "layers.0.mlp.experts.0.down_proj.weight": partial(fn, is_column=False),
-                }
-            for key, action in base_actions.items():
-                for i in range(num_layers):
-                    newkey = key.replace("layers.0.", f"layers.{i}.")
-                    for j in range(num_experts):
-                        newkey2 = newkey.replace("experts.0.", f"experts.{j}.")
-                        final_actions[newkey2] = action
+                # bias
+                if config.attention_bias:
+                    if not config.fuse_attention_qkv:
+                        actions.update(
+                            {
+                                f"{cls.base_model_prefix}.layers.{layer_idx}.{b}": partial(fn, is_column=True)
+                                for b in BIAS_KEYS
+                            }
+                        )
+                    else:
+                        actions.update(
+                            {
+                                f"{cls.base_model_prefix}.layers.{layer_idx}.{b}": partial(fn, is_column=True)
+                                for b in FUSE_BIAS_KEYS
+                            }
+                        )
 
-            # Add tp split for shared expert params.
-            base_actions = {}
-            for key, action in base_actions.items():
-                if "layers.0." in key:
-                    for i in range(num_layers):
-                        final_actions[key.replace("layers.0.", f"layers.{i}.")] = action
-                final_actions[key] = action
+            return actions
 
-            return final_actions
-
-        mappings = get_tensor_parallel_split_mappings(config.num_hidden_layers, config.num_experts)
-
+        mappings = make_base_actions()
         return mappings
 
     @classmethod
