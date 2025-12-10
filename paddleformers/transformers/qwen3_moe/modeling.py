@@ -593,9 +593,7 @@ class Qwen3MoePretrainedModel(PretrainedModel):
             # Add tp split for expert params.
             if config.fuse_attention_ffn:
                 base_actions = {
-                    "layers.0.mlp.experts.0.gate_up_fused_proj.weight": partial(
-                        fn, is_column=True, is_naive_2fuse=True
-                    ),
+                    "layers.0.mlp.experts.0.up_gate_proj.weight": partial(fn, is_column=True, is_naive_2fuse=True),
                     "layers.0.mlp.experts.0.down_proj.weight": partial(fn, is_column=False),
                 }
             else:
@@ -646,7 +644,7 @@ class Qwen3MoePretrainedModel(PretrainedModel):
         fuse_gate_up_keys = (
             "layers.0.mlp.experts.0.gate_proj.weight",
             "layers.0.mlp.experts.0.up_proj.weight",
-            "layers.0.mlp.experts.0.gate_up_fused_proj.weight",
+            "layers.0.mlp.experts.0.up_gate_proj.weight",
         )
         num_heads = config.num_attention_heads
         num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)

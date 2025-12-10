@@ -349,9 +349,7 @@ class Qwen2PretrainedModel(PretrainedModel):
                     base_actions["layers.0.self_attn.v_proj.bias"] = partial(fn, is_column=True)
 
             if config.fuse_attention_ffn:
-                base_actions["layers.0.mlp.gate_up_fused_proj.weight"] = partial(
-                    fn, is_column=True, is_naive_2fuse=True
-                )
+                base_actions["layers.0.mlp.up_gate_proj.weight"] = partial(fn, is_column=True, is_naive_2fuse=True)
             else:
                 base_actions["layers.0.mlp.gate_proj.weight"] = partial(fn, is_column=True)
                 base_actions["layers.0.mlp.up_proj.weight"] = partial(fn, is_column=True)
@@ -394,7 +392,7 @@ class Qwen2PretrainedModel(PretrainedModel):
         fuse_gate_up_keys = (
             "layers.0.mlp.gate_proj.weight",
             "layers.0.mlp.up_proj.weight",
-            "layers.0.mlp.gate_up_fused_proj.weight",
+            "layers.0.mlp.up_gate_proj.weight",
         )
         num_heads = config.num_attention_heads
         num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
