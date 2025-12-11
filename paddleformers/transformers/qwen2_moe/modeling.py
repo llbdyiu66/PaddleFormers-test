@@ -580,6 +580,29 @@ class Qwen2MoePretrainedModel(PretrainedModel):
                             for k in LAYER_COLWISE
                         }
                     )
+                    if config.qkv_bias:
+                        actions.update(
+                            {
+                                f"{cls.base_model_prefix}.layers.{layer_idx}.{b}": partial(fn, is_column=True)
+                                for b in BIAS_KEYS
+                            }
+                        )
+                else:
+                    actions.update(
+                        {
+                            f"{cls.base_model_prefix}.layers.{layer_idx}.{k}": partial(fn, is_column=True)
+                            for k in FUSE_LAYER_COLWISE
+                        }
+                    )
+                    if config.qkv_bias:
+                        actions.update(
+                            {
+                                f"{cls.base_model_prefix}.layers.{layer_idx}.{b}": partial(fn, is_column=True)
+                                for b in FUSE_BIAS_KEYS
+                            }
+                        )
+
+                if not config.fuse_attention_ffn:
                     actions.update(
                         {
                             f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.experts.{e}.{k}": partial(
@@ -597,25 +620,11 @@ class Qwen2MoePretrainedModel(PretrainedModel):
                             for k in SHARED_EXPERT_LAYER_COLWISE
                         }
                     )
-                    # bias
-                    if config.qkv_bias:
-                        actions.update(
-                            {
-                                f"{cls.base_model_prefix}.layers.{layer_idx}.{b}": partial(fn, is_column=True)
-                                for b in BIAS_KEYS
-                            }
-                        )
                 else:
                     actions.update(
                         {
-                            f"{cls.base_model_prefix}.layers.{layer_idx}.{k}": partial(fn, is_column=True)
-                            for k in FUSE_LAYER_COLWISE
-                        }
-                    )
-                    actions.update(
-                        {
                             f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.experts.{e}.{k}": partial(
-                                fn, is_column=True
+                                fn, is_column=True, is_naive_2fuse=True
                             )
                             for e in range(config.num_experts)
                             for k in FUSE_EXPERT_LAYER_COLWISE
@@ -624,20 +633,11 @@ class Qwen2MoePretrainedModel(PretrainedModel):
                     actions.update(
                         {
                             f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.shared_expert.{k}": partial(
-                                fn, is_column=True
+                                fn, is_column=True, is_naive_2fuse=True
                             )
                             for k in FUSE_SHARED_EXPERT_LAYER_COLWISE
                         }
                     )
-                    # bias
-                    if config.qkv_bias:
-                        actions.update(
-                            {
-                                f"{cls.base_model_prefix}.layers.{layer_idx}.{b}": partial(fn, is_column=True)
-                                for b in FUSE_BIAS_KEYS
-                            }
-                        )
-
                 # rowwise
                 actions.update(
                     {

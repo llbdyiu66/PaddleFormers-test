@@ -321,12 +321,16 @@ class Qwen2PretrainedModel(PretrainedModel):
             "self_attn.q_proj.weight",
             "self_attn.k_proj.weight",
             "self_attn.v_proj.weight",
+        ]
+        FUSE_LAYER_COLWISE = [
+            "self_attn.qkv_proj.weight",
+        ]
+
+        FFN_LAYER_COLWISE = [
             "mlp.up_proj.weight",
             "mlp.gate_proj.weight",
         ]
-
-        FUSE_LAYER_COLWISE = [
-            "self_attn.qkv_proj.weight",
+        FUSE_FFN_LAYER_COLWISE = [
             "mlp.up_gate_proj.weight",
         ]
 
@@ -372,6 +376,22 @@ class Qwen2PretrainedModel(PretrainedModel):
                         {
                             f"{cls.base_model_prefix}.layers.{layer_idx}.{b}": partial(fn, is_column=True)
                             for b in FUSE_BIAS_KEYS
+                        }
+                    )
+                if not config.fuse_attention_ffn:
+                    actions.update(
+                        {
+                            f"{cls.base_model_prefix}.layers.{layer_idx}.{k}": partial(fn, is_column=True)
+                            for k in FFN_LAYER_COLWISE
+                        }
+                    )
+                else:
+                    actions.update(
+                        {
+                            f"{cls.base_model_prefix}.layers.{layer_idx}.{k}": partial(
+                                fn, is_column=True, is_naive_2fuse=True
+                            )
+                            for k in FUSE_FFN_LAYER_COLWISE
                         }
                     )
                 # rowwise
