@@ -1372,7 +1372,6 @@ class TrainingArguments:
 
         # use_hybrid_parallel
         if self.use_hybrid_parallel:
-
             if ShardingOption.OFFLOAD in self.sharding:
                 warnings.warn("`offload` is not supported NOW!")
 
@@ -1386,7 +1385,7 @@ class TrainingArguments:
             if not paddle.distributed.parallel.parallel_helper._is_parallel_ctx_initialized():
                 strategy = fleet.DistributedStrategy()
                 assert self.data_parallel_config == "", "data_parallle_config is not supported in hybrid parallel"
-                if self.pipeline_model_parallel_size > 1:
+                if self.pipeline_model_parallel_size > 1 or HAS_PADDLEFLEET:
                     pipeline_parallel_config = split_parallel_config(self.pipeline_parallel_config)
                     for x in pipeline_parallel_config:
                         if len(x) > 0:

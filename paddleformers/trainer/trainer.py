@@ -2989,8 +2989,6 @@ class Trainer:
                     param.initialize()
 
             return model
-        if HAS_PADDLEFLEET and isinstance(model, LoRAModel):
-            model = model.model
 
         # train/eval could be run multiple-times - if already wrapped, don't re-wrap it again
         if unwrap_model(model) is not model:
