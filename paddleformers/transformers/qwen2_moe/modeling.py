@@ -511,6 +511,9 @@ class Qwen2MoePretrainedModel(PretrainedModel):
             "self_attn.k_proj.weight",
             "self_attn.v_proj.weight",
         ]
+        FUSE_LAYER_COLWISE = [
+            "self_attn.qkv_proj.weight",
+        ]
 
         LAYER_ROWWISE = ["self_attn.o_proj.weight"]
 
@@ -518,12 +521,18 @@ class Qwen2MoePretrainedModel(PretrainedModel):
             "up_proj.weight",
             "gate_proj.weight",
         ]
+        FUSE_EXPERT_LAYER_COLWISE = [
+            "up_gate_proj.weight",
+        ]
 
         EXPERT_LAYER_ROWWISE = ["down_proj.weight"]
 
         SHARED_EXPERT_LAYER_COLWISE = [
             "up_proj.weight",
             "gate_proj.weight",
+        ]
+        FUSE_SHARED_EXPERT_LAYER_COLWISE = [
+            "up_gate_proj.weight",
         ]
 
         SHARED_EXPERT_LAYER_ROWWISE = ["down_proj.weight"]
@@ -533,30 +542,87 @@ class Qwen2MoePretrainedModel(PretrainedModel):
             "self_attn.k_proj.bias",
             "self_attn.v_proj.bias",
         ]
+        FUSE_BIAS_KEYS = [
+            "self_attn.qkv_proj.bias",
+        ]
 
         def make_base_actions():
             actions = {
                 "lm_head.weight": partial(fn, is_column=False),
-                "embed_tokens.weight": partial(fn, is_column=False),
+                f"{cls.base_model_prefix}.embed_tokens.weight": partial(fn, is_column=False),
             }
             for layer_idx in range(config.num_hidden_layers):
-                actions.update(
-                    {
-                        f"{cls.base_model_prefix}.layers.{layer_idx}.{k}": partial(fn, is_column=True)
-                        for k in LAYER_COLWISE
-                    }
-                )
+                # colwise
+                if not config.fuse_attention_qkv:
+                    actions.update(
+                        {
+                            f"{cls.base_model_prefix}.layers.{layer_idx}.{k}": partial(fn, is_column=True)
+                            for k in LAYER_COLWISE
+                        }
+                    )
+                    if config.qkv_bias:
+                        actions.update(
+                            {
+                                f"{cls.base_model_prefix}.layers.{layer_idx}.{b}": partial(fn, is_column=True)
+                                for b in BIAS_KEYS
+                            }
+                        )
+                else:
+                    actions.update(
+                        {
+                            f"{cls.base_model_prefix}.layers.{layer_idx}.{k}": partial(fn, is_column=True)
+                            for k in FUSE_LAYER_COLWISE
+                        }
+                    )
+                    if config.qkv_bias:
+                        actions.update(
+                            {
+                                f"{cls.base_model_prefix}.layers.{layer_idx}.{b}": partial(fn, is_column=True)
+                                for b in FUSE_BIAS_KEYS
+                            }
+                        )
+
+                if not config.fuse_attention_ffn:
+                    actions.update(
+                        {
+                            f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.experts.{e}.{k}": partial(
+                                fn, is_column=True
+                            )
+                            for e in range(config.num_experts)
+                            for k in EXPERT_LAYER_COLWISE
+                        }
+                    )
+                    actions.update(
+                        {
+                            f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.shared_expert.{k}": partial(
+                                fn, is_column=True
+                            )
+                            for k in SHARED_EXPERT_LAYER_COLWISE
+                        }
+                    )
+                else:
+                    actions.update(
+                        {
+                            f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.experts.{e}.{k}": partial(
+                                fn, is_column=True, is_naive_2fuse=True
+                            )
+                            for e in range(config.num_experts)
+                            for k in FUSE_EXPERT_LAYER_COLWISE
+                        }
+                    )
+                    actions.update(
+                        {
+                            f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.shared_expert.{k}": partial(
+                                fn, is_column=True, is_naive_2fuse=True
+                            )
+                            for k in FUSE_SHARED_EXPERT_LAYER_COLWISE
+                        }
+                    )
+                # rowwise
                 actions.update(
                     {
                         f"{cls.base_model_prefix}.layers.{layer_idx}.{k}": partial(fn, is_column=False)
                         for k in LAYER_ROWWISE
-                    }
-                )
-                actions.update(
-                    {
-                        f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.experts.{e}.{k}": partial(fn, is_column=True)
-                        for e in range(config.num_experts)
-                        for k in EXPERT_LAYER_COLWISE
                     }
                 )
                 actions.update(
@@ -569,32 +635,82 @@ class Qwen2MoePretrainedModel(PretrainedModel):
                 actions.update(
                     {
                         f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.shared_expert.{k}": partial(
-                            fn, is_column=True
-                        )
-                        for k in SHARED_EXPERT_LAYER_COLWISE
-                    }
-                )
-                actions.update(
-                    {
-                        f"{cls.base_model_prefix}.layers.{layer_idx}.mlp.shared_expert.{k}": partial(
                             fn, is_column=False
                         )
                         for k in SHARED_EXPERT_LAYER_ROWWISE
                     }
                 )
-                # bias
-                if config.qkv_bias:
-                    actions.update(
-                        {
-                            f"{cls.base_model_prefix}.layers.{layer_idx}.{b}": partial(fn, is_column=True)
-                            for b in BIAS_KEYS
-                        }
-                    )
 
             return actions
 
         mappings = make_base_actions()
         return mappings
+
+    @classmethod
+    def _get_fuse_or_split_param_mappings(cls, config: Qwen2MoeConfig, is_fuse=False):
+        # return parameter fuse utils
+        from ..conversion_utils import split_or_fuse_func
+
+        fn = split_or_fuse_func(is_fuse=is_fuse)
+
+        # last key is fused key, other keys are to be fused.
+        fuse_qkv_keys = [
+            (
+                "layers.0.self_attn.q_proj.weight",
+                "layers.0.self_attn.k_proj.weight",
+                "layers.0.self_attn.v_proj.weight",
+                "layers.0.self_attn.qkv_proj.weight",
+            ),
+            (
+                "layers.0.self_attn.q_proj.bias",
+                "layers.0.self_attn.k_proj.bias",
+                "layers.0.self_attn.v_proj.bias",
+                "layers.0.self_attn.qkv_proj.bias",
+            ),
+        ]
+
+        fuse_gate_up_keys = (
+            "layers.0.mlp.experts.0.gate_proj.weight",
+            "layers.0.mlp.experts.0.up_proj.weight",
+            "layers.0.mlp.experts.0.up_gate_proj.weight",
+        )
+        num_heads = config.num_attention_heads
+        num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+        fuse_attention_qkv = getattr(config, "fuse_attention_qkv", False)
+        fuse_attention_ffn = getattr(config, "fuse_attention_ffn", False)
+        num_experts = getattr(config, "num_experts", 128)
+
+        final_actions = {}
+        if is_fuse:
+            if fuse_attention_qkv:
+                for i in range(config.num_hidden_layers):
+                    keys = [key.replace("layers.0.", f"layers.{i}.") for key in fuse_gate_up_keys]
+                    for j in range(num_experts):
+                        experts_keys = tuple([key.replace("experts.0.", f"experts.{j}.") for key in keys])
+                        final_actions[experts_keys] = fn
+            if fuse_attention_ffn:
+                for i in range(config.num_hidden_layers):
+                    keys = tuple([key.replace("layers.0.", f"layers.{i}.") for key in fuse_gate_up_keys])
+                    final_actions[keys] = fn
+        else:
+            if not fuse_attention_qkv:
+                for i in range(config.num_hidden_layers):
+                    for fuse_keys in fuse_qkv_keys:
+                        keys = tuple([key.replace("layers.0.", f"layers.{i}.") for key in fuse_keys])
+                        final_actions[keys] = partial(
+                            fn,
+                            split_nums=3,
+                            is_qkv=True,
+                            num_heads=num_heads,
+                            num_key_value_heads=num_key_value_heads,
+                        )
+            if not fuse_attention_ffn:
+                for i in range(config.num_hidden_layers):
+                    keys = [key.replace("layers.0.", f"layers.{i}.") for key in fuse_gate_up_keys]
+                    for j in range(num_experts):
+                        experts_keys = tuple([key.replace("experts.0.", f"experts.{j}.") for key in keys])
+                        final_actions[experts_keys] = partial(fn, split_nums=2)
+        return final_actions
 
     @classmethod
     def _gen_aoa_config(cls, config: Qwen2MoeConfig):
@@ -1114,6 +1230,7 @@ class Qwen2MoeForCausalLMPipe(GeneralModelForCausalLMPipe):
     config_class = Qwen2MoeConfig
     _decoder_layer_cls = Qwen2MoeDecoderLayer
     _get_tensor_parallel_mappings = Qwen2MoeModel._get_tensor_parallel_mappings
+    _get_fuse_or_split_param_mappings = Qwen2MoeModel._get_fuse_or_split_param_mappings
     _init_weights = Qwen2MoeModel._init_weights
     _keep_in_fp32_modules = Qwen2MoeModel._keep_in_fp32_modules
     _rotary_emb_cls = Qwen2MoeRotaryEmbedding
