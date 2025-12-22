@@ -2919,11 +2919,15 @@ class Trainer:
                 for key, value in target_attr.items():
                     if get_env_device() == "gpu":
                         target_attr[key] = getattr(value, action)()
+                    elif get_env_device() == "xpu":
+                        target_attr[key] = getattr(value, action)()
                     else:
                         target_attr[key] = getattr(value, "to")(action)
 
     def _offload_optimizer(self):
         if get_env_device() == "gpu":
+            self._apply_to_optimizer("pin_memory")
+        elif get_env_device() == "xpu":
             self._apply_to_optimizer("pin_memory")
         else:
             self._apply_to_optimizer("cpu")
@@ -3386,6 +3390,8 @@ class Trainer:
             # update data type for pure fp16
             if data.place.is_cuda_pinned_place():
                 return data.cuda()
+            elif data.place.is_xpu_pinned_place():
+                return data.to(paddle.device.get_device())
             return data
             # return data.to(**kwargs)
         return data
