@@ -2762,7 +2762,7 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
         download_hub = kwargs.pop("download_hub", None)
         subfolder = kwargs.pop("subfolder", None)
         load_via_cpu = kwargs.pop("load_via_cpu", False)
-        load_checkpoint_format = kwargs.pop("load_checkpoint_format", "")
+        load_checkpoint_format = kwargs.pop("load_checkpoint_format", "flex_checkpoint")
         if subfolder is None:
             subfolder = ""
         variant = kwargs.pop("variant", None)
@@ -3111,7 +3111,7 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
         # is_main_process = kwargs.get("is_main_process", True)
         save_to_hf = kwargs.get("save_to_hf", True)
 
-        save_checkpoint_format = kwargs.get("save_checkpoint_format", "")
+        save_checkpoint_format = kwargs.get("save_checkpoint_format", "flex_checkpoint")
 
         if kwargs.get("enable_auto_parallel", ""):
             # use flex_checkpoint as the default format in auto_parallel
