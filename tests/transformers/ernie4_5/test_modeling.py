@@ -465,7 +465,9 @@ class Ernie4_5CompatibilityTest(unittest.TestCase):
         # 2. forward the paddle model
         from paddleformers.transformers import Ernie4_5Model
 
-        paddle_model = Ernie4_5Model.from_pretrained(self.torch_model_path, convert_from_hf=True, dtype="float32")
+        paddle_model = Ernie4_5Model.from_pretrained(
+            self.torch_model_path, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+        )
         paddle_model.eval()
         paddle_logit = paddle_model(paddle.to_tensor(input_ids))[0]
 
@@ -504,7 +506,9 @@ class Ernie4_5CompatibilityTest(unittest.TestCase):
             # 2. forward the paddle model
             from paddleformers.transformers import Ernie4_5Model
 
-            paddle_model = Ernie4_5Model.from_pretrained(tempdir, convert_from_hf=True, dtype="float32")
+            paddle_model = Ernie4_5Model.from_pretrained(
+                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+            )
             paddle_model.eval()
             paddle_logit = paddle_model(paddle.to_tensor(input_ids))[0]
 
@@ -586,7 +590,9 @@ class Ernie4_5CompatibilityTest(unittest.TestCase):
             from paddleformers import transformers
 
             paddle_model_class = getattr(transformers, class_name)
-            paddle_model = paddle_model_class.from_pretrained(tempdir, convert_from_hf=True, dtype="float32")
+            paddle_model = paddle_model_class.from_pretrained(
+                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+            )
             paddle_model.eval()
 
             if class_name == "Ernie4_5Model":
