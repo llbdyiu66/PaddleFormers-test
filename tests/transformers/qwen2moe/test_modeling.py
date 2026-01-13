@@ -329,7 +329,7 @@ class Qwen2MoeIntegrationTest(unittest.TestCase):
             "PaddleFormers/tiny-random-qwen2moe",
             dtype="float32",
             convert_from_hf=True,
-            load_checkpoint_format="unified_checkpoint",
+            load_checkpoint_format="",
         )
         input_ids = paddle.to_tensor([input_ids])
         with paddle.no_grad():
@@ -386,7 +386,7 @@ class Qwen2MoeCompatibilityTest(unittest.TestCase):
         from paddleformers.transformers import Qwen2MoeModel
 
         paddle_model = Qwen2MoeModel.from_pretrained(
-            self.torch_model_path, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+            self.torch_model_path, convert_from_hf=True, dtype="float32", load_checkpoint_format=""
         )
         paddle_model.eval()
         paddle_logit = paddle_model(paddle.to_tensor(input_ids))[0]
@@ -490,7 +490,7 @@ class Qwen2MoeCompatibilityTest(unittest.TestCase):
 
             paddle_model_class = getattr(transformers, class_name)
             paddle_model = paddle_model_class.from_pretrained(
-                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format=""
             )
             paddle_model.eval()
 

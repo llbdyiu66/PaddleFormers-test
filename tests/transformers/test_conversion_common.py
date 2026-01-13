@@ -59,7 +59,7 @@ def common_test_load(model_class, model_first, config_second, tempdir):
         first = model_first(input_ids)[0]
 
     model_second = model_class.from_pretrained(
-        tempdir, config=config_second, convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
+        tempdir, config=config_second, convert_from_hf=False, load_checkpoint_format=""
     )
     model_second.eval()
     with paddle.no_grad():

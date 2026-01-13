@@ -59,7 +59,7 @@ def prepare_config(config):
 def common_test_load(model_class, tempdir):
     paddle.distributed.barrier()
     if model_class is not None:
-        model_class.from_pretrained(tempdir, convert_from_hf=False, load_checkpoint_format="unified_checkpoint")
+        model_class.from_pretrained(tempdir, convert_from_hf=False, load_checkpoint_format="")
         paddle.distributed.barrier()
         if paddle.distributed.get_rank() == 0:
             files = glob.glob(tempdir + "/*")

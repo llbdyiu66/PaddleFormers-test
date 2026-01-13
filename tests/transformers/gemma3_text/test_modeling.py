@@ -457,7 +457,7 @@ class Gemma3TextIntegrationTest(unittest.TestCase):
             download_hub="aistudio",
             convert_from_hf=True,
             dtype=self.test_dtype,
-            load_checkpoint_format="unified_checkpoint",
+            load_checkpoint_format="",
         )
         model.eval()
         input_ids = paddle.to_tensor([[0, 345, 232, 328, 740, 140, 1695, 69, 6078, 1588, 2]])
@@ -492,7 +492,7 @@ class Gemma3TextIntegrationTest(unittest.TestCase):
             download_hub="aistudio",
             convert_from_hf=True,
             dtype=self.test_dtype,
-            load_checkpoint_format="unified_checkpoint",
+            load_checkpoint_format="",
         )
         model.eval()
         input_ids = paddle.to_tensor([[0, 345, 232, 328, 740, 140, 1695, 69, 6078, 1588, 2]])
@@ -546,7 +546,7 @@ class Gemma3TextCompatibilityTest(unittest.TestCase):
         from paddleformers.transformers import Gemma3TextModel
 
         paddle_model = Gemma3TextModel.from_pretrained(
-            self.torch_model_path, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+            self.torch_model_path, convert_from_hf=True, dtype="float32", load_checkpoint_format=""
         )
         paddle_model.eval()
         paddle_logit = paddle_model(paddle.to_tensor(input_ids))[0]
@@ -588,7 +588,7 @@ class Gemma3TextCompatibilityTest(unittest.TestCase):
             from paddleformers.transformers import Gemma3TextModel
 
             paddle_model = Gemma3TextModel.from_pretrained(
-                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format=""
             )
             paddle_model.eval()
             paddle_logit = paddle_model(paddle.to_tensor(input_ids))[0]
@@ -631,7 +631,7 @@ class Gemma3TextCompatibilityTest(unittest.TestCase):
 
             paddle_model_class = getattr(transformers, class_name)
             paddle_model = paddle_model_class.from_pretrained(
-                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format=""
             )
             paddle_model.eval()
 

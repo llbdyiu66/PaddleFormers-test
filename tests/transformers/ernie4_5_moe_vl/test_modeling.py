@@ -597,7 +597,7 @@ class Ernie4_5_VLModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.Tes
                     config=config,
                     dtype="bfloat16",
                     convert_from_hf=False,
-                    load_checkpoint_format="unified_checkpoint",
+                    load_checkpoint_format="",
                 )
                 paddle.amp.decorate(
                     models=model,
@@ -636,7 +636,7 @@ class Ernie4_5_MoE_VLIntegrationTest(unittest.TestCase):
             dtype="bfloat16",
             convert_from_hf=True,
             download_hub="aistudio",
-            load_checkpoint_format="unified_checkpoint",
+            load_checkpoint_format="",
         )
         paddle.amp.decorate(
             models=model,

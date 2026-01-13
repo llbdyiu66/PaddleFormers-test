@@ -75,13 +75,13 @@ class TestFromPretrained(unittest.TestCase):
                 mname,
                 low_cpu_mem_usage=True,
                 convert_from_hf=convert,
-                load_checkpoint_format="unified_checkpoint",
+                load_checkpoint_format="",
             )
             m2 = LlamaModel.from_pretrained(
                 mname,
                 low_cpu_mem_usage=False,
                 convert_from_hf=convert,
-                load_checkpoint_format="unified_checkpoint",
+                load_checkpoint_format="",
             )
             for p1, p2 in zip(m1.parameters(), m2.parameters()):
                 self.assertTrue(paddle.allclose(p1.float(), p2.float()))
@@ -100,9 +100,7 @@ class TestFromPretrained(unittest.TestCase):
             self.assertEqual(state_dict["linear.weight"].dtype, paddle.float16)
             self.assertEqual(state_dict["norm.weight"].dtype, paddle.float16)
 
-            new_model = FakeModel.from_pretrained(
-                tempdir, convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
-            )
+            new_model = FakeModel.from_pretrained(tempdir, convert_from_hf=False, load_checkpoint_format="")
             self.assertEqual(new_model.linear.weight.dtype, paddle.float16)
             self.assertEqual(new_model.norm.weight.dtype, paddle.float32)
 
@@ -111,7 +109,7 @@ class TestFromPretrained(unittest.TestCase):
         model = LlamaModel.from_pretrained(
             "Paddleformers/tiny-random-llama3-shard",
             convert_from_hf=False,
-            load_checkpoint_format="unified_checkpoint",
+            load_checkpoint_format="",
         )
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -142,7 +140,7 @@ class TestFromPretrained(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp_dir:
                 model.save_pretrained(tmp_dir, save_to_hf=False, save_checkpoint_format="")
                 new_model = Qwen3Model.from_pretrained(
-                    tmp_dir, dtype=str_dst_dtype, convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
+                    tmp_dir, dtype=str_dst_dtype, convert_from_hf=False, load_checkpoint_format=""
                 )
 
             for k, v in model.state_dict().items():
@@ -236,7 +234,7 @@ class TestShardCheckpoint(unittest.TestCase):
         model = LlamaModel.from_pretrained(
             "Paddleformers/tiny-random-llama3-shard",
             convert_from_hf=False,
-            load_checkpoint_format="unified_checkpoint",
+            load_checkpoint_format="",
         )
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -277,9 +275,7 @@ class TestShardCheckpoint(unittest.TestCase):
                 self.assertSetEqual(all_shards, shards_found)
 
                 # Finally, check the model can be reloaded
-                new_model = LlamaModel.from_pretrained(
-                    tmp_dir, convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
-                )
+                new_model = LlamaModel.from_pretrained(tmp_dir, convert_from_hf=False, load_checkpoint_format="")
                 for p1, p2 in zip(model.parameters(), new_model.parameters()):
                     self.assertTrue(paddle.allclose(p1, p2))
 
@@ -287,21 +283,21 @@ class TestShardCheckpoint(unittest.TestCase):
         model = LlamaModel.from_pretrained(
             "Paddleformers/tiny-random-llama3-shard",
             convert_from_hf=False,
-            load_checkpoint_format="unified_checkpoint",
+            load_checkpoint_format="",
         )
 
         # the model above is the same as the model below, just a sharded version.
         ref_model = LlamaModel.from_pretrained(
             "Paddleformers/tiny-random-llama3-shard",
             convert_from_hf=False,
-            load_checkpoint_format="unified_checkpoint",
+            load_checkpoint_format="",
         )
         for p1, p2 in zip(model.parameters(), ref_model.parameters()):
             self.assertTrue(paddle.allclose(p1, p2))
 
     def test_checkpoint_variant_local(self):
         model = AutoModelForCausalLM.from_pretrained(
-            "PaddleFormers/tiny-random-qwen3", convert_from_hf=True, load_checkpoint_format="unified_checkpoint"
+            "PaddleFormers/tiny-random-qwen3", convert_from_hf=True, load_checkpoint_format=""
         )
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -314,12 +310,10 @@ class TestShardCheckpoint(unittest.TestCase):
             self.assertFalse(os.path.isfile(os.path.join(tmp_dir, PADDLE_WEIGHTS_NAME)))
 
             with self.assertRaises(EnvironmentError):
-                _ = Qwen3Model.from_pretrained(
-                    tmp_dir, convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
-                )
+                _ = Qwen3Model.from_pretrained(tmp_dir, convert_from_hf=False, load_checkpoint_format="")
 
             new_model = Qwen3Model.from_pretrained(
-                tmp_dir, variant="v2", convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
+                tmp_dir, variant="v2", convert_from_hf=False, load_checkpoint_format=""
             )
 
         for p1, p2 in zip(model.parameters(), new_model.parameters()):
@@ -327,7 +321,7 @@ class TestShardCheckpoint(unittest.TestCase):
 
     def test_checkpoint_variant_local_sharded(self):
         model = AutoModelForCausalLM.from_pretrained(
-            "PaddleFormers/tiny-random-qwen3", convert_from_hf=True, load_checkpoint_format="unified_checkpoint"
+            "PaddleFormers/tiny-random-qwen3", convert_from_hf=True, load_checkpoint_format=""
         )
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -351,12 +345,10 @@ class TestShardCheckpoint(unittest.TestCase):
                 self.assertTrue(os.path.isfile(weights_name_file))
 
             with self.assertRaises(EnvironmentError):
-                _ = Qwen3Model.from_pretrained(
-                    tmp_dir, convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
-                )
+                _ = Qwen3Model.from_pretrained(tmp_dir, convert_from_hf=False, load_checkpoint_format="")
 
             new_model = Qwen3Model.from_pretrained(
-                tmp_dir, variant="v2", convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
+                tmp_dir, variant="v2", convert_from_hf=False, load_checkpoint_format=""
             )
 
         for p1, p2 in zip(model.parameters(), new_model.parameters()):
@@ -365,7 +357,7 @@ class TestShardCheckpoint(unittest.TestCase):
     @require_package("safetensors")
     def test_checkpoint_variant_local_safe(self):
         model = AutoModelForCausalLM.from_pretrained(
-            "PaddleFormers/tiny-random-qwen3", convert_from_hf=True, load_checkpoint_format="unified_checkpoint"
+            "PaddleFormers/tiny-random-qwen3", convert_from_hf=True, load_checkpoint_format=""
         )
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -381,12 +373,10 @@ class TestShardCheckpoint(unittest.TestCase):
             self.assertFalse(os.path.isfile(os.path.join(tmp_dir, SAFE_WEIGHTS_NAME)))
 
             with self.assertRaises(EnvironmentError):
-                _ = Qwen3Model.from_pretrained(
-                    tmp_dir, convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
-                )
+                _ = Qwen3Model.from_pretrained(tmp_dir, convert_from_hf=False, load_checkpoint_format="")
 
             new_model = Qwen3Model.from_pretrained(
-                tmp_dir, variant="v2", convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
+                tmp_dir, variant="v2", convert_from_hf=False, load_checkpoint_format=""
             )
 
         for p1, p2 in zip(model.parameters(), new_model.parameters()):
@@ -395,7 +385,7 @@ class TestShardCheckpoint(unittest.TestCase):
     @require_package("safetensors")
     def test_checkpoint_variant_local_sharded_safe(self):
         model = AutoModelForCausalLM.from_pretrained(
-            "PaddleFormers/tiny-random-qwen3", convert_from_hf=True, load_checkpoint_format="unified_checkpoint"
+            "PaddleFormers/tiny-random-qwen3", convert_from_hf=True, load_checkpoint_format=""
         )
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -424,12 +414,10 @@ class TestShardCheckpoint(unittest.TestCase):
                 self.assertTrue(os.path.isfile(weights_name_file))
 
             with self.assertRaises(EnvironmentError):
-                _ = Qwen3Model.from_pretrained(
-                    tmp_dir, convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
-                )
+                _ = Qwen3Model.from_pretrained(tmp_dir, convert_from_hf=False, load_checkpoint_format="")
 
             new_model = Qwen3Model.from_pretrained(
-                tmp_dir, variant="v2", convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
+                tmp_dir, variant="v2", convert_from_hf=False, load_checkpoint_format=""
             )
 
         for p1, p2 in zip(model.parameters(), new_model.parameters()):
@@ -442,7 +430,7 @@ class TestShardCheckpoint(unittest.TestCase):
                     "Paddleformers/tiny-random-llama-variant",
                     cache_dir=tmp_dir,
                     convert_from_hf=False,
-                    load_checkpoint_format="unified_checkpoint",
+                    load_checkpoint_format="",
                 )
 
             model = LlamaModel.from_pretrained(
@@ -450,7 +438,7 @@ class TestShardCheckpoint(unittest.TestCase):
                 cache_dir=tmp_dir,
                 variant="v2",
                 convert_from_hf=False,
-                load_checkpoint_format="unified_checkpoint",
+                load_checkpoint_format="",
             )
         self.assertIsNotNone(model)
 
@@ -461,14 +449,14 @@ class TestShardCheckpoint(unittest.TestCase):
                     "Paddleformers/tiny-random-llama-variant-sharded",
                     cache_dir=tmp_dir,
                     convert_from_hf=False,
-                    load_checkpoint_format="unified_checkpoint",
+                    load_checkpoint_format="",
                 )
             model = LlamaModel.from_pretrained(
                 "Paddleformers/tiny-random-llama-variant-sharded",
                 cache_dir=tmp_dir,
                 variant="v2",
                 convert_from_hf=False,
-                load_checkpoint_format="unified_checkpoint",
+                load_checkpoint_format="",
             )
         self.assertIsNotNone(model)
 
@@ -479,7 +467,7 @@ class TestShardCheckpoint(unittest.TestCase):
                 cache_dir=tmp_dir,
                 variant="v2",
                 convert_from_hf=False,
-                load_checkpoint_format="unified_checkpoint",
+                load_checkpoint_format="",
             )
             weights_name = ".".join(PADDLE_WEIGHTS_NAME.split(".")[:-1] + ["v2"] + ["pdparams"])
 

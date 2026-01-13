@@ -803,7 +803,7 @@ class TinyRandomGenerationTest(unittest.TestCase):
 
         tokenizer = AutoTokenizer.from_pretrained("Paddleformers/tiny-random-llama")
         model = AutoModelForCausalLM.from_pretrained(
-            "Paddleformers/tiny-random-llama", convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
+            "Paddleformers/tiny-random-llama", convert_from_hf=False, load_checkpoint_format=""
         )
         input_ids = paddle.to_tensor(tokenizer(article)["input_ids"]).unsqueeze([0])
         attention_mask = paddle.ones_like(input_ids)

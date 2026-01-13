@@ -532,9 +532,7 @@ class Qwen3VLModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCas
                 model = model_class(config)
                 model.save_pretrained(tmpdirname, save_checkpoint_format="flex_checkpoint")
 
-                model1 = model_class.from_pretrained(
-                    tmpdirname, convert_from_hf=True, load_checkpoint_format="unified_checkpoint"
-                )
+                model1 = model_class.from_pretrained(tmpdirname, convert_from_hf=True, load_checkpoint_format="")
 
                 model2 = model_class.from_pretrained(tmpdirname, load_checkpoint_format="flex_checkpoint")
 
@@ -550,7 +548,7 @@ class Qwen3VLModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCas
 class Qwen3VLIntegrationTest(unittest.TestCase):
     def setUp(self):
         self.model = Qwen3VLForConditionalGeneration.from_pretrained(
-            "PaddleFormers/tiny-random-qwen3vl", convert_from_hf=True, load_checkpoint_format="unified_checkpoint"
+            "PaddleFormers/tiny-random-qwen3vl", convert_from_hf=True, load_checkpoint_format=""
         )
 
         self.processor = AutoProcessor.from_pretrained("PaddleFormers/tiny-random-qwen3vl")
@@ -912,7 +910,7 @@ class Qwen3VLCompatibilityTest(unittest.TestCase):
 
         paddle_inputs = {k: paddle.to_tensor(v) for k, v in self.inputs.items()}
         paddle_model = Qwen3VLForConditionalGeneration.from_pretrained(
-            self.torch_model_path, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+            self.torch_model_path, convert_from_hf=True, dtype="float32", load_checkpoint_format=""
         ).eval()
         paddle_logit = paddle_model(**paddle_inputs)["logits"]
 
@@ -957,7 +955,7 @@ class Qwen3VLCompatibilityTest(unittest.TestCase):
 
             paddle_inputs = {k: paddle.to_tensor(v) for k, v in self.inputs.items()}
             paddle_model = Qwen3VLForConditionalGeneration.from_pretrained(
-                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format=""
             )
             paddle_model.eval()
             paddle_logit = paddle_model(**paddle_inputs)["logits"]
@@ -995,7 +993,7 @@ class Qwen3VLCompatibilityTest(unittest.TestCase):
             paddle_inputs = {k: paddle.to_tensor(v) for k, v in self.inputs.items()}
             paddle_model_class = getattr(transformers, class_name)
             paddle_model = paddle_model_class.from_pretrained(
-                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format=""
             ).eval()
             paddle_model_fused = paddle_model_class.from_pretrained(
                 tempdir,

@@ -378,7 +378,7 @@ class Glm4MoeModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCas
                 "PaddleFormers/tiny-random-glm4moe",
                 download_hub="aistudio",
                 convert_from_hf=True,
-                load_checkpoint_format="unified_checkpoint",
+                load_checkpoint_format="",
             )
 
             model2 = model_class.from_pretrained(
@@ -396,9 +396,7 @@ class Glm4MoeModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCas
             # test save_pretrained
             with tempfile.TemporaryDirectory() as tmpdirname:
                 model2.save_pretrained(tmpdirname, save_checkpoint_format="flex_checkpoint")
-                model3 = model_class.from_pretrained(
-                    tmpdirname, convert_from_hf=True, load_checkpoint_format="unified_checkpoint"
-                )
+                model3 = model_class.from_pretrained(tmpdirname, convert_from_hf=True, load_checkpoint_format="")
                 model_state_3 = model3.state_dict()
 
                 for k, v in model_state_3.items():
@@ -422,7 +420,7 @@ class Glm4MoeModelIntegrationTest(ModelTesterPretrainedMixin, unittest.TestCase)
             "PaddleFormers/tiny-random-glm4moe",
             download_hub="aistudio",
             convert_from_hf=True,
-            load_checkpoint_format="unified_checkpoint",
+            load_checkpoint_format="",
         )
         model.eval()
         input_ids = paddle.to_tensor([[0, 345, 232, 328, 740, 140, 1695, 69, 6078, 1588, 2]])
@@ -448,7 +446,7 @@ class Glm4MoeModelIntegrationTest(ModelTesterPretrainedMixin, unittest.TestCase)
             "PaddleFormers/tiny-random-glm4moe",
             download_hub="aistudio",
             convert_from_hf=True,
-            load_checkpoint_format="unified_checkpoint",
+            load_checkpoint_format="",
         )
         model.eval()
         input_ids = paddle.to_tensor([[0, 345, 232, 328, 740, 140, 1695, 69, 6078, 1588, 2]])
@@ -491,7 +489,7 @@ class Glm4MoeCompatibilityTest(unittest.TestCase):
         from paddleformers.transformers import Glm4MoeModel
 
         paddle_model = Glm4MoeModel.from_pretrained(
-            self.torch_model_path, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+            self.torch_model_path, convert_from_hf=True, dtype="float32", load_checkpoint_format=""
         )
         paddle_model.eval()
         paddle_logit = paddle_model(paddle.to_tensor(input_ids))[0]
@@ -532,7 +530,7 @@ class Glm4MoeCompatibilityTest(unittest.TestCase):
             from paddleformers.transformers import Glm4MoeModel
 
             paddle_model = Glm4MoeModel.from_pretrained(
-                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format=""
             )
             paddle_model.eval()
             paddle_logit = paddle_model(paddle.to_tensor(input_ids))[0]
@@ -570,7 +568,7 @@ class Glm4MoeCompatibilityTest(unittest.TestCase):
 
             paddle_model_class = getattr(transformers, class_name)
             paddle_model = paddle_model_class.from_pretrained(
-                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format="unified_checkpoint"
+                tempdir, convert_from_hf=True, dtype="float32", load_checkpoint_format=""
             )
             paddle_model.eval()
 

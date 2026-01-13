@@ -39,7 +39,7 @@ class StreamerTester(unittest.TestCase):
     def test_text_streamer_matches_non_streaming(self):
         tokenizer = AutoTokenizer.from_pretrained("Paddleformers/tiny-random-llama")
         model = AutoModelForCausalLM.from_pretrained(
-            "Paddleformers/tiny-random-llama", convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
+            "Paddleformers/tiny-random-llama", convert_from_hf=False, load_checkpoint_format=""
         )
         model.config.eos_token_id = -1
 
@@ -58,7 +58,7 @@ class StreamerTester(unittest.TestCase):
     def test_iterator_streamer_matches_non_streaming(self):
         tokenizer = AutoTokenizer.from_pretrained("Paddleformers/tiny-random-llama")
         model = AutoModelForCausalLM.from_pretrained(
-            "Paddleformers/tiny-random-llama", convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
+            "Paddleformers/tiny-random-llama", convert_from_hf=False, load_checkpoint_format=""
         )
         model.config.eos_token_id = -1
 
@@ -102,7 +102,7 @@ class StreamerTester(unittest.TestCase):
     def test_iterator_streamer_timeout(self):
         tokenizer = AutoTokenizer.from_pretrained("Paddleformers/tiny-random-llama")
         model = AutoModelForCausalLM.from_pretrained(
-            "Paddleformers/tiny-random-llama", convert_from_hf=False, load_checkpoint_format="unified_checkpoint"
+            "Paddleformers/tiny-random-llama", convert_from_hf=False, load_checkpoint_format=""
         )
         model.config.eos_token_id = -1
 
