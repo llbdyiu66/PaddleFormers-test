@@ -17,7 +17,7 @@ import os
 import random
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from functools import partial
 
 import numpy as np
@@ -40,7 +40,6 @@ try:
 except ImportError:
     get_static_model_on_pdc = None
 
-from config import get_config
 from model_config import ModelConfig
 from models.ernie import ErnieMoEConfig
 from models.ernie.modeling_moe import ErnieMoEForCausalLM
@@ -304,7 +303,7 @@ def create_pretrained_dataset(args):
         data_impl="mmap",
         splits_string=args.split,
         train_val_test_num_samples=train_val_test_num_samples,
-        seq_length=args.max_seq_length + args.multi_token_pred_depth,
+        seq_length=args.max_seq_len + args.multi_token_pred_depth,
         seed=args.seed,
         skip_warmup=True,
         data_cache_path=None,
@@ -326,35 +325,34 @@ def create_pretrained_dataset(args):
     return train_dataset, valid_dataset, test_dataset, _collate_data
 
 
-def main():
+def run_ernie_pretrain(model_args, data_args, generating_args, training_args):
     if set_affinity is not None:
         set_affinity_code = set_affinity()
         if set_affinity_code == SUCCESS_CODE:
             logger.info("set affinity successed.")
         else:
             logger.info("set affinity failed.")
-    config = get_config(verbose=True)
-    os.makedirs(config.model_args.output_dir, exist_ok=True)
+    os.makedirs(training_args.output_dir, exist_ok=True)
     parser = PdArgumentParser(AllArguments)
 
-    if not hasattr(config.trainer_args, "pipeline_parallel_config"):
-        config.trainer_args.pipeline_parallel_config = ""
+    if not hasattr(training_args, "pipeline_parallel_config"):
+        training_args.pipeline_parallel_config = ""
 
-    if getattr(config.model_args, "sequence_parallel", 0):
+    if getattr(training_args, "sequence_parallel", 0):
         logger.warning("disabling `partial_send_recv` when using sequence parallel")
-        config.trainer_args.partial_send_recv = False
+        training_args.partial_send_recv = False
 
-    if getattr(config.trainer_args, "bf16", False) and not getattr(config.trainer_args, "pp_delay_scale_loss", False):
+    if getattr(training_args, "bf16", False) and not getattr(training_args, "pp_delay_scale_loss", False):
         logger.warning(
             "It is recommended to enable pp_delay_scale_loss for better performance "
             "of precision when using bf16 in training"
         )
-        config.trainer_args.pp_delay_scale_loss = True
+        training_args.pp_delay_scale_loss = True
 
-    if getattr(config.trainer_args, "dp_comm_overlap", False):
+    if getattr(training_args, "dp_comm_overlap", False):
         logger.warning("Pipeline dp_comm_overlap and FusedLinearWithGradAdd can not be used at the same time.")
 
-    if getattr(config.trainer_args, "timer", False):
+    if getattr(training_args, "timer", False):
         from paddle.distributed.fleet.meta_parallel.pipeline_parallel import (
             PipelineParallel,
         )
@@ -368,38 +366,46 @@ def main():
             return {k: formatv(vv) for k, vv in dict(v).items()}
         return v
 
-    model_args = {k: formatv(v) for k, v in dict(config.model_args).items()}
-    trainer_args = {k: formatv(v) for k, v in dict(config.trainer_args).items()}
-    if trainer_args["moe_group"] == "ep":
+    model_args = {k: formatv(v) for k, v in asdict(model_args).items()}
+    trainer_args = {k: formatv(v) for k, v in asdict(training_args).items()}
+    data_args = {k: formatv(v) for k, v in asdict(data_args).items()}
+    if model_args["moe_group"] == "ep":
         assert (
             trainer_args.get("expert_model_parallel_size", -1) > 1
         ), "When moe_group is 'ep', 'expert_model_parallel_size' must be set to greater than 1."
         assert (
             trainer_args.get("sharding_parallel_size", -1) > 1
         ), "sharding_parallel_size should > 1 in when moe_group is 'ep'."
-        assert trainer_args.get("sharding") == "stage1", "Hybrid expert parallel only supports sharding stage1 now."
+        assert (
+            trainer_args["sharding"][0].value == "stage1"
+        ), "Hybrid expert parallel only supports sharding stage1 now."
         assert trainer_args.get("split_param", False), "Hybrid expert parallel only supports Sharding stage1 V2 now."
         assert (
             trainer_args.get("data_parallel_size", 1) == 1
         ), "Now, moe_group = 'ep' cannot be used with data_parallel_size > 1."
 
-    data_processor_args = {k: formatv(v) for k, v in dict(getattr(config, "data_processor_args", {})).items()}
-    (args,) = parser.parse_dict(dict(**model_args, **trainer_args, **data_processor_args))
+    (args,) = parser.parse_dict(dict(**model_args, **trainer_args, **data_args))
     args.audio_config = dict(model_args).get("model_config", {}).get("audio_config", {})
-    args.use_moe = dict(**dict(config.model_args), **dict(config.trainer_args)).get("use_moe", False)
-    args.moe_with_send_router_loss = dict(**dict(config.model_args), **dict(config.trainer_args)).get(
-        "moe_with_send_router_loss", True
+    args.use_moe = (
+        getattr(training_args, "use_moe", None)
+        if hasattr(training_args, "use_moe")
+        else getattr(model_args, "use_moe", False)
+    )
+    args.moe_with_send_router_loss = (
+        getattr(training_args, "moe_with_send_router_loss", None)
+        if hasattr(training_args, "moe_with_send_router_loss")
+        else getattr(model_args, "moe_with_send_router_loss", True)
     )
     args.eval_iters = 10
     args.test_iters = args.eval_iters * 10
 
-    args.enable_delay_scale_loss = config.trainer_args.pp_delay_scale_loss
+    args.enable_delay_scale_loss = training_args.pp_delay_scale_loss
 
-    model_config = dict(getattr(config.model_args, "model_config", {}))
+    model_config = model_args.get("ernie_model_config", {})
     model_config = {k: formatv(v) for k, v in model_config.items()}
     logger.info(f"model_config_from_yaml: {json.dumps(model_config, indent=4)}")
 
-    setup_logger_output_file(config.model_args.output_dir, args.local_rank)
+    setup_logger_output_file(training_args.output_dir, args.local_rank)
     paddle.set_device(args.device)
     np.random.seed(args.seed)
     random.seed(args.seed)
@@ -564,8 +570,8 @@ def main():
     args.multi_token_pred_depth = model_config.get("multi_token_pred_depth", 0)
 
     cfg = ErnieMoEConfig.from_pretrained(args.model_name_or_path)
-    cfg.seqlen = args.max_seq_length
-    cfg.token_balance_seqlen = args.max_seq_length * args.per_device_train_batch_size
+    cfg.seqlen = args.max_seq_len
+    cfg.token_balance_seqlen = args.max_seq_len * args.per_device_train_batch_size
     cfg.fp16_opt_level = args.fp16_opt_level
     cfg.moe_group = args.moe_group
     cfg.dtype = dtype
@@ -587,7 +593,7 @@ def main():
         cfg.tensor_parallel_rank = 0
     cfg.micro_batch_size = args.per_device_train_batch_size
 
-    tokenizer = ErnieBotTokenizer.from_pretrained(args.tokenizer_name)
+    tokenizer = ErnieBotTokenizer.from_pretrained(args.tokenizer_name_or_path)
     tokenizer.ignored_index = cfg.ignored_index
     logger.info(
         f"using tokenizer={type(tokenizer)}, bos:{tokenizer.bos_token_id} "
@@ -607,7 +613,7 @@ def main():
     else:
         model = ErnieMoEForCausalLM(cfg)
 
-    if not args.from_scratch:
+    if not args.from_scratch and last_checkpoint is None and args.resume_from_checkpoint is None:
         load_huggingface_checkpoint(model, args)
 
     # We must use non-huggingface format to save intermediate checkpoints during training.
@@ -623,7 +629,7 @@ def main():
 
     dataset_config = {
         "tokenizer": tokenizer,
-        "max_seq_len": args.max_seq_length + 1,
+        "max_seq_len": args.max_seq_len + 1,
         "random_seed": args.seed,
         "num_replicas": args.dataset_world_size,
         "rank": args.dataset_rank,
@@ -658,7 +664,7 @@ def main():
                 output_dir=args.output_dir, num_nextn_predict_layers=args.multi_token_pred_depth
             ),
             model_args=ModelConfig(stage="SFT", use_attn_mask_startend_row_indices=True),
-            max_seq_len=args.max_seq_length + 1,
+            max_seq_len=args.max_seq_len + 1,
         )
     else:
         train_dataset, eval_dataset, _, data_collator = create_pretrained_dataset(args)
@@ -706,7 +712,3 @@ def main():
     if args.do_eval:
         eval_metrics = trainer.evaluate()
         trainer.log_metrics("eval", eval_metrics)
-
-
-if __name__ == "__main__":
-    main()
