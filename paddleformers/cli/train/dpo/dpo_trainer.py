@@ -259,7 +259,7 @@ class DPOTrainer(Trainer):
         if self.args.pipeline_model_parallel_size > 1:
             # hack for pipeline mode
             inputs = self._prepare_inputs(inputs)
-            return self.prediction_pipeline_step(self.ref_model_wrapped, model, inputs)
+            return self.prediction_pipeline_step(self.ref_model_wrapped, model, inputs, step)
         if ignore_keys is None:
             if hasattr(model, "config"):
                 ignore_keys = getattr(model.config, "keys_to_ignore_at_inference", [])
@@ -412,6 +412,7 @@ class DPOTrainer(Trainer):
         ref_model,
         model,
         batch,
+        step: int = -1,
     ):
         """
         prediction_step function for pipeline parallel mode.
@@ -420,31 +421,30 @@ class DPOTrainer(Trainer):
         concatenated_inputs = {}
         # consider no drop last
         per_device_train_batch_size = self.args.per_device_train_batch_size
-        gradient_accumulation_steps = self.args.gradient_accumulation_steps
         # preprocess inputs: tuple(List[Tensor])
         for key in batch.keys():
             if key not in "response_indexs":
-                concatenated_inputs[key] = [
-                    batch[key][i * per_device_train_batch_size : (i + 1) * per_device_train_batch_size]
-                    for i in range(gradient_accumulation_steps)
-                ]
+                concatenated_inputs[key] = batch[key][:per_device_train_batch_size]
             else:
-                concatenated_inputs["response_indexs"] = [[] for _ in range(gradient_accumulation_steps)]
-                for i in range(gradient_accumulation_steps):
-                    for response_index in batch[key]:
-                        if response_index[0] in list(
-                            range(i * per_device_train_batch_size, (i + 1) * per_device_train_batch_size)
-                        ):
-                            response_index[0] -= i * per_device_train_batch_size
-                            concatenated_inputs["response_indexs"][i].append(response_index)
-                    concatenated_inputs["response_indexs"][i] = paddle.stack(concatenated_inputs["response_indexs"][i])
-                    if model._layers.config.use_filtered_label_loss:
-                        last_batch_response_length = concatenated_inputs["response_indexs"][i][0, 1]
-                        concatenated_inputs["response_indexs"][i][:, 1:] -= last_batch_response_length
+                concatenated_inputs["response_indexs"] = []
+                for response_index in batch[key]:
+                    if response_index[0] in list(range(0, per_device_train_batch_size)):
+                        concatenated_inputs["response_indexs"].append(response_index)
+                concatenated_inputs["response_indexs"] = paddle.stack(concatenated_inputs["response_indexs"])
+                if model._layers.config.use_filtered_label_loss:
+                    last_batch_response_length = concatenated_inputs["response_indexs"][0, 1]
+                    concatenated_inputs["response_indexs"][:, 1:] -= last_batch_response_length
 
         concatenated_inputs["reference_chosen_logps"] = None
         concatenated_inputs["reference_rejected_logps"] = None
 
+        if step == 0 or not hasattr(self, "_pp_eval_data_buffer"):
+            self._pp_eval_data_buffer = []
+        self._pp_eval_data_buffer.append(concatenated_inputs)
+        if len(self._pp_eval_data_buffer) != self.args.gradient_accumulation_steps:
+            return (None, None, None)
+        concatenated_inputs = self._pp_eval_data_buffer
+        self._pp_eval_data_buffer = []
         self._pp_data_buffer = []
         inputs, labels = model._prepare_pipeline_inputs_func(concatenated_inputs)
         if not self.dpo_config.reference_free:
@@ -722,10 +722,8 @@ def prepare_pipeline_dpo_inputs_func(inputs):
     keys = list(inputs[0].keys())
     inputs_batch = {key: [data.pop(key) for data in inputs] for key in keys}
     return [
-        inputs_batch,
-        first_stage_keys,
-        inputs_batch,
-        last_stage_keys,
+        get_expected_keys(inputs_batch, first_stage_keys),
+        get_expected_keys(inputs_batch, last_stage_keys),
     ]
 
 
