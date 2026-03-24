@@ -3097,6 +3097,8 @@ class Trainer:
             global_norm_func = gradclip._global_norm
             training_logs = self.global_training_logs
 
+            train_mtp_only = self.args.train_mtp_only
+
             @paddle.no_grad()
             def new_global_norm_func(
                 self,
@@ -3104,6 +3106,10 @@ class Trainer:
                 global_norm_var_not_dist,
                 *args,
             ):
+                if train_mtp_only:
+                    logger.info("GRAD NORM calculation in MTP-only training is not support for now.")
+                    return
+
                 if len(args) > 0:
                     global_norm_func(global_norm_var_dist, global_norm_var_not_dist, *args)
                     global_norm_var_dist_moe, global_norm_var_not_dist_moe = args
